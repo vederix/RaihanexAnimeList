@@ -8,6 +8,7 @@ import Watchlist from "./pages/Watchlist";
 import { Toaster } from "react-hot-toast";
 import Profile from "./pages/Profile";
 import Schedule from "./pages/Schedule";
+import Seasonal from "./pages/Seasonal";
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/schedule" element={<Schedule />} />
+            <Route path="/seasonal" element={<Seasonal />} />
           </Routes>
         </main>
       </div>

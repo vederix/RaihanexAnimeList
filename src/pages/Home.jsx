@@ -3,10 +3,16 @@ import AnimeCard from "../components/AnimeCard";
 import SkeletonCard from "../components/SkeletonCard";
 import { fetchAniList } from "../utils/anilist";
 import { supabase } from "../supabaseClient";
-import { FaFire, FaCalendarAlt, FaMagic, FaClock } from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
+import {
+  FaFire,
+  FaCalendarAlt,
+  FaMagic,
+  FaClock,
+  FaCompass,
+  FaPlay,
+} from "react-icons/fa";
+import { Link } from "react-router-dom";
 
-// 1. QUERY TRENDING (Sama seperti sebelumnya)
 const TRENDING_QUERY = `
   query ($page: Int) {
     Page(page: $page, perPage: 10) {
@@ -18,7 +24,6 @@ const TRENDING_QUERY = `
   }
 `;
 
-// 2. QUERY JADWAL RILIS (Mengambil anime yang akan tayang dalam waktu dekat)
 const AIRING_QUERY = `
   query {
     Page(page: 1, perPage: 5) {
@@ -26,14 +31,13 @@ const AIRING_QUERY = `
         episode
         timeUntilAiring
         media {
-          id title { romaji english } coverImage { large } averageScore format seasonYear
+          id title { romaji english } coverImage { large } averageScore format seasonYear status
         }
       }
     }
   }
 `;
 
-// 3. QUERY REKOMENDASI PINTAR (Berdasarkan ID anime favorit user)
 const RECOM_QUERY = `
   query ($id: Int) {
     Media(id: $id) {
@@ -42,7 +46,7 @@ const RECOM_QUERY = `
         edges {
           node {
             mediaRecommendation {
-              id title { romaji english } coverImage { large } averageScore format seasonYear
+              id title { romaji english } coverImage { large } averageScore format seasonYear status
             }
           }
         }
@@ -69,12 +73,10 @@ const Home = () => {
   const fetchDashboardData = async () => {
     setIsLoading(true);
     try {
-      // Ambil Sesi User dari Supabase
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      // Ambil Jadwal Tayang (Airing) & Trending secara paralel
       const [airingData, trendingData] = await Promise.all([
         fetchAniList(AIRING_QUERY),
         fetchAniList(TRENDING_QUERY, { page: 1 }),
@@ -84,9 +86,7 @@ const Home = () => {
       setTrendingAnime(trendingData.Page.media);
       setHasNextPage(trendingData.Page.pageInfo.hasNextPage);
 
-      // --- LOGIKA REKOMENDASI CERDAS (KDD) ---
       if (session?.user) {
-        // Cari 1 anime di watchlist user dengan rating tertinggi (>= 8)
         const { data: topAnime } = await supabase
           .from("watchlist")
           .select("mal_id")
@@ -100,7 +100,7 @@ const Home = () => {
           });
           const animeNodes = recomData.Media.recommendations.edges
             .map((edge) => edge.node.mediaRecommendation)
-            .filter((anime) => anime !== null); // Filter null data dari AniList
+            .filter((anime) => anime !== null);
 
           setBaseRecomTitle(recomData.Media.title.romaji);
           setRecommendedAnime(animeNodes);
@@ -128,7 +128,6 @@ const Home = () => {
     }
   };
 
-  // Fungsi mengubah detik menjadi format Jam/Hari
   const formatTimeAiring = (seconds) => {
     const hours = Math.floor(seconds / 3600);
     const days = Math.floor(hours / 24);
@@ -138,112 +137,188 @@ const Home = () => {
 
   return (
     <div className="pb-16 relative z-10">
-      {/* HEADER HERO */}
-      <div className="flex flex-col items-center justify-center min-h-[40vh] text-center mb-12">
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold mb-6 tracking-tight drop-shadow-xl text-white mt-10">
-          Temukan{" "}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-300">
-            Anime
-          </span>{" "}
-          Favoritmu
-        </h1>
-        <p className="text-red-100/70 max-w-xl text-sm sm:text-lg font-medium px-4">
-          Jelajahi jadwal rilis terbaru, ulasan komunitas, dan rekomendasi AI
-          eksklusif di RAIHANEX.
-        </p>
+      {/* --- HERO SECTION ULTIMATE --- */}
+      <div className="relative flex flex-col items-center justify-center min-h-[55vh] text-center mb-16 overflow-hidden pt-20">
+        {/* Orbs Background Animasi */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-red-600/20 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
+        <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-red-900/40 rounded-full blur-[100px] pointer-events-none"></div>
+
+        <div className="relative z-10 max-w-4xl px-4 flex flex-col items-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-950/50 border border-red-500/30 text-red-300 text-xs sm:text-sm font-bold mb-6 backdrop-blur-md shadow-[0_0_15px_rgba(220,38,38,0.2)]">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+            Platform Database Anime Terdepan
+          </div>
+
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-black mb-6 tracking-tighter drop-shadow-2xl text-white leading-tight">
+            Eksplorasi{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-red-400 to-white">
+              Anime
+            </span>{" "}
+            Tanpa Batas
+          </h1>
+
+          <p className="text-red-100/70 max-w-2xl text-base sm:text-lg font-medium mb-10 leading-relaxed">
+            Pantau jadwal tayang, simpan watchlist pribadi, dan temukan
+            rekomendasi Anime menarik. Semua terintegrasi sempurna di RAIHANEX.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+            <Link
+              to="/search"
+              className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(220,38,38,0.4)] hover:shadow-[0_0_40px_rgba(220,38,38,0.6)] transition-all flex items-center justify-center gap-3 hover:-translate-y-1"
+            >
+              <FaCompass className="text-xl" /> Mulai Petualangan
+            </Link>
+            <Link
+              to="/schedule"
+              className="bg-[#1a0505]/60 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-gray-300 hover:text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 hover:-translate-y-1 shadow-lg"
+            >
+              <FaPlay className="text-red-500" /> Lihat Jadwal
+            </Link>
+          </div>
+        </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-14 w-14 border-t-2 border-b-2 border-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)]"></div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-16">
-          {/* SECTION 1: JADWAL RILIS TERDEKAT (AIRING SCHEDULE) */}
-          <section>
-            <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <FaCalendarAlt className="text-red-500 text-2xl drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
-                <h2 className="text-2xl font-bold text-white">
-                  Jadwal Rilis Terdekat
-                </h2>
-              </div>
-              <Link
-                to="/schedule"
-                className="text-xs sm:text-sm font-bold text-red-400 hover:text-white transition-colors bg-red-900/20 px-4 py-2 rounded-full border border-red-900/50 flex items-center gap-2 hover:bg-red-900/40 w-max"
-              >
-                Lihat Kalender Lengkap &rarr;
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
-              {airingAnime.map((schedule) => (
-                <div key={schedule.media.id} className="relative group">
-                  {/* Badge Notifikasi Episode & Waktu */}
-                  <div className="absolute -top-3 -right-3 z-20 bg-gradient-to-r from-red-700 to-red-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-full shadow-[0_5px_15px_rgba(220,38,38,0.5)] flex items-center gap-1.5 border border-red-400/50">
-                    <FaClock /> Ep {schedule.episode}:{" "}
-                    {formatTimeAiring(schedule.timeUntilAiring)}
+      {/* --- KONTEN UTAMA --- */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        {isLoading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]"></div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-12 md:gap-16">
+            {/* SECTION 1: JADWAL RILIS TERDEKAT */}
+            <section className="bg-[#0a0202]/60 backdrop-blur-xl border border-red-900/30 p-6 md:p-8 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
+              <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-red-900/30 pb-4">
+                <div className="flex items-center gap-4">
+                  <div className="bg-red-900/30 p-3 rounded-xl border border-red-500/20">
+                    <FaCalendarAlt className="text-red-500 text-2xl drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
                   </div>
-                  <AnimeCard anime={schedule.media} />
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* SECTION 2: SMART RECOMMENDATION (Muncul jika user login & punya rating tinggi) */}
-          {recommendedAnime.length > 0 && (
-            <section className="bg-red-900/10 border border-red-900/30 p-6 rounded-3xl backdrop-blur-sm relative overflow-hidden">
-              <div className="absolute -left-20 top-1/2 -translate-y-1/2 w-64 h-64 bg-red-600/10 rounded-full blur-[80px] pointer-events-none"></div>
-
-              <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-2 relative z-10">
-                <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <FaMagic className="text-amber-400 text-2xl drop-shadow-[0_0_10px_rgba(251,191,36,0.8)]" />
-                    <h2 className="text-2xl font-bold text-white">
-                      Direkomendasikan Untukmu
+                  <div>
+                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                      Jadwal Rilis Terdekat
                     </h2>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Anime yang akan tayang dalam beberapa jam ke depan.
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-400">
-                    Karena kamu memberi rating tinggi pada{" "}
-                    <b className="text-red-300">{baseRecomTitle}</b>
+                </div>
+                <Link
+                  to="/schedule"
+                  className="text-xs sm:text-sm font-bold text-red-400 hover:text-white transition-colors bg-black/40 px-5 py-2.5 rounded-xl border border-red-900/50 hover:bg-red-900/40 w-max shadow-md"
+                >
+                  Kalender Lengkap &rarr;
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+                {/* SOLUSI ERROR KEY: Menambahkan index ke dalam properti key */}
+                {airingAnime.map((schedule, index) => (
+                  <div
+                    key={`${schedule.media?.id || schedule.id}-${schedule.episode}-${index}`}
+                    className="relative group hover:-translate-y-2 transition-transform duration-300"
+                  >
+                    <div className="absolute -top-3 -right-3 z-20 bg-gradient-to-r from-red-700 to-red-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg shadow-[0_10px_20px_rgba(220,38,38,0.5)] flex items-center gap-1.5 border border-red-400/50 uppercase tracking-wider">
+                      <FaClock /> Ep {schedule.episode}:{" "}
+                      {formatTimeAiring(schedule.timeUntilAiring)}
+                    </div>
+                    <AnimeCard anime={schedule.media} />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* SECTION 2: SMART RECOMMENDATION */}
+            {recommendedAnime.length > 0 && (
+              <section className="bg-gradient-to-br from-red-950/40 to-black/60 border border-red-800/40 p-6 md:p-8 rounded-[2rem] backdrop-blur-xl relative overflow-hidden shadow-[0_20px_50px_rgba(220,38,38,0.1)]">
+                <div className="absolute -left-32 top-1/2 -translate-y-1/2 w-96 h-96 bg-red-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+                <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-red-900/30 pb-4 relative z-10">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-amber-900/30 p-3 rounded-xl border border-amber-500/20">
+                      <FaMagic className="text-amber-400 text-2xl drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                        Rekomendasi Anime
+                      </h2>
+                      <p className="text-sm text-gray-300 mt-1">
+                        Mirip dengan{" "}
+                        <span className="font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded-md">
+                          {baseRecomTitle}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 relative z-10">
+                  {recommendedAnime.map((anime) => (
+                    <div
+                      key={anime.id}
+                      className="hover:-translate-y-2 transition-transform duration-300"
+                    >
+                      <AnimeCard anime={anime} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* SECTION 3: SEDANG TRENDING */}
+            <section className="bg-[#0a0202]/60 backdrop-blur-xl border border-red-900/30 p-6 md:p-8 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
+              <div className="mb-8 flex items-center gap-4 border-b border-red-900/30 pb-4">
+                <div className="bg-orange-900/30 p-3 rounded-xl border border-orange-500/20">
+                  <FaFire className="text-orange-500 text-2xl drop-shadow-[0_0_15px_rgba(249,115,22,0.8)]" />
+                </div>
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                    Sedang Trending
+                  </h2>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Judul-judul terpanas yang sedang ramai dibicarakan
+                    komunitas.
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6 relative z-10">
-                {recommendedAnime.map((anime) => (
-                  <AnimeCard key={anime.id} anime={anime} />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+                {trendingAnime.map((anime) => (
+                  <div
+                    key={anime.id}
+                    className="hover:-translate-y-2 transition-transform duration-300"
+                  >
+                    <AnimeCard anime={anime} />
+                  </div>
                 ))}
               </div>
+
+              {hasNextPage && (
+                <div className="flex justify-center mt-12">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={isFetchingMore}
+                    className="bg-black/60 hover:bg-red-900/40 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-red-300 hover:text-white px-8 py-4 rounded-xl transition-all duration-300 shadow-[0_10px_30px_rgba(220,38,38,0.15)] font-bold tracking-wide flex items-center gap-3 group"
+                  >
+                    {isFetchingMore ? (
+                      <span className="animate-pulse">
+                        Memuat Data Server...
+                      </span>
+                    ) : (
+                      <>
+                        Muat Lebih Banyak{" "}
+                        <span className="group-hover:translate-y-1 transition-transform">
+                          &darr;
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </section>
-          )}
-
-          {/* SECTION 3: SEDANG TRENDING */}
-          <section>
-            <div className="mb-6 flex items-center gap-3">
-              <FaFire className="text-orange-500 text-2xl drop-shadow-[0_0_10px_rgba(249,115,22,0.8)]" />
-              <h2 className="text-2xl font-bold text-white">Sedang Trending</h2>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
-              {trendingAnime.map((anime) => (
-                <AnimeCard key={anime.id} anime={anime} />
-              ))}
-            </div>
-
-            {hasNextPage && (
-              <div className="flex justify-center mt-12">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={isFetchingMore}
-                  className="bg-black/40 hover:bg-red-900/40 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-red-300 hover:text-white px-8 py-3.5 rounded-full transition-all shadow-[0_5px_20px_rgba(220,38,38,0.15)] font-bold tracking-wide flex items-center gap-2"
-                >
-                  {isFetchingMore ? "Memuat Anime..." : "Muat Lebih Banyak ↓"}
-                </button>
-              </div>
-            )}
-          </section>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
