@@ -13,6 +13,7 @@ import {
   FaTrophy,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
+import SmartRecommendation from "../components/SmartRecommendation";
 
 const Profile = () => {
   const [user, setUser] = useState(null);
@@ -331,6 +332,7 @@ const Profile = () => {
             )}
           </div>
         )}
+        <SmartRecommendation />
       </div>
     </div>
   );
