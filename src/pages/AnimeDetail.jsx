@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
+import { fetchAniList } from "../utils/anilist";
+import toast from "react-hot-toast";
 import {
   FaStar,
   FaArrowLeft,
@@ -19,18 +22,19 @@ import {
   FaFire,
   FaClock,
   FaInfoCircle,
+  FaSitemap,
+  FaTv,
+  FaBook,
+  FaBookmark,
 } from "react-icons/fa";
-import { supabase } from "../supabaseClient";
-import { fetchAniList } from "../utils/anilist";
-import toast from "react-hot-toast";
 
-// 1. QUERY ANILIST DIPERLUAS (Banner, Studio, Durasi, Musim, Format, Sumber)
+// 1. QUERY ANILIST DIPERLUAS (Termasuk Relations)
 const DETAIL_QUERY = `
   query ($id: Int) {
     Media(id: $id, type: ANIME) {
       id title { romaji english native } 
       coverImage { large extraLarge } bannerImage 
-      averageScore status episodes duration season seasonYear format source description genres 
+      averageScore status episodes duration season seasonYear format source description(asHtml: true) genres 
       studios(isMain: true) { nodes { name } }
       trailer { id site }
       characters(sort: [ROLE, RELEVANCE], perPage: 10) {
@@ -39,9 +43,34 @@ const DETAIL_QUERY = `
           voiceActors(language: JAPANESE, sort: RELEVANCE) { id name { full } image { large } } 
         }
       }
+      relations {
+        edges {
+          relationType
+          node {
+            id title { romaji } coverImage { large } type format status averageScore
+          }
+        }
+      }
     }
   }
 `;
+
+// Helper untuk Silsilah
+const translateRelation = (type) => {
+  const types = {
+    ADAPTATION: "Adaptasi",
+    PREQUEL: "Prekuel",
+    SEQUEL: "Sekuel",
+    PARENT: "Cerita Utama",
+    SIDE_STORY: "Side Story",
+    CHARACTER: "Karakter",
+    SUMMARY: "Ringkasan",
+    ALTERNATIVE: "Versi Alternatif",
+    SPIN_OFF: "Spin-off",
+    OTHER: "Lainnya",
+  };
+  return types[type] || type;
+};
 
 const AnimeDetail = () => {
   const { id } = useParams();
@@ -72,10 +101,12 @@ const AnimeDetail = () => {
 
   useEffect(() => {
     const fetchAnimeAndUser = async () => {
+      setIsLoading(true);
       try {
         const data = await fetchAniList(DETAIL_QUERY, { id: parseInt(id) });
         const animeData = data.Media;
         setAnime(animeData);
+        window.scrollTo({ top: 0, behavior: "smooth" });
 
         const {
           data: { session },
@@ -120,7 +151,10 @@ const AnimeDetail = () => {
   // --- LOGIKA DATABASE & KOMUNITAS ---
   const handleSubmitReview = async (e) => {
     e.preventDefault();
-    if (!user) return toast.error("Kamu harus login dulu!");
+    if (!user)
+      return toast.error("Kamu harus login dulu!", {
+        style: { background: "#333", color: "#fff", borderRadius: "10px" },
+      });
     if (!reviewInput.trim()) return toast.error("Ulasan tidak boleh kosong!");
     setIsSubmittingReview(true);
     try {
@@ -190,7 +224,7 @@ const AnimeDetail = () => {
       setReviews((prev) =>
         prev.filter((r) => r.id !== reviewId && r.parent_id !== reviewId),
       );
-      toast.success("Dihapus.");
+      toast.success("Ulasan dihapus.");
     } catch (error) {
       toast.error("Gagal menghapus.");
     }
@@ -199,9 +233,12 @@ const AnimeDetail = () => {
   const confirmDeleteReview = (reviewId) => {
     toast(
       (t) => (
-        <div className="flex flex-col gap-4 p-1 w-full">
-          <span className="font-semibold text-white text-center">
-            Yakin ingin menghapus ini?
+        <div className="flex flex-col gap-3 p-2 w-full min-w-[250px]">
+          <span className="font-bold text-gray-800 text-center text-lg">
+            Hapus Ulasan?
+          </span>
+          <span className="text-sm text-gray-500 text-center mb-2">
+            Tindakan ini tidak dapat dibatalkan.
           </span>
           <div className="flex justify-center gap-3">
             <button
@@ -209,20 +246,20 @@ const AnimeDetail = () => {
                 toast.dismiss(t.id);
                 executeDeleteReview(reviewId);
               }}
-              className="bg-red-600 hover:bg-red-500 text-white px-5 py-2 rounded-lg text-sm font-bold border border-red-400/50"
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold w-full shadow-lg shadow-red-500/30 transition-all"
             >
               Hapus
             </button>
             <button
               onClick={() => toast.dismiss(t.id)}
-              className="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2 rounded-lg text-sm font-bold border border-slate-500/50"
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-all"
             >
               Batal
             </button>
           </div>
         </div>
       ),
-      { duration: 6000 },
+      { duration: 5000 },
     );
   };
 
@@ -241,7 +278,7 @@ const AnimeDetail = () => {
           r.id === reviewId ? { ...r, content: editContent.trim() } : r,
         ),
       );
-      toast.success("Diperbarui!");
+      toast.success("Ulasan diperbarui!");
       setEditingReviewId(null);
     } catch (error) {
       toast.error("Gagal memperbarui.");
@@ -251,12 +288,14 @@ const AnimeDetail = () => {
   };
 
   const handleLikeReview = async (reviewId, currentLikes) => {
-    if (!user) return toast.error("Login dulu!");
+    if (!user) return toast.error("Login dulu untuk menyukai ulasan!");
     const likesArray = currentLikes || [];
     const hasLiked = likesArray.includes(user.id);
     const newLikes = hasLiked
       ? likesArray.filter((id) => id !== user.id)
       : [...likesArray, user.id];
+
+    // Optimistic UI update
     setReviews((prev) =>
       prev.map((r) => (r.id === reviewId ? { ...r, liked_by: newLikes } : r)),
     );
@@ -267,6 +306,7 @@ const AnimeDetail = () => {
         .eq("id", reviewId);
       if (error) throw error;
     } catch (error) {
+      // Revert if failed
       setReviews((prev) =>
         prev.map((r) =>
           r.id === reviewId ? { ...r, liked_by: likesArray } : r,
@@ -277,7 +317,9 @@ const AnimeDetail = () => {
 
   const toggleWatchlist = async () => {
     if (!user) {
-      toast.error("Kamu harus login dulu!");
+      toast.error("Kamu harus login dulu!", {
+        style: { background: "#333", color: "#fff", borderRadius: "10px" },
+      });
       return navigate("/auth");
     }
     setIsProcessing(true);
@@ -289,7 +331,7 @@ const AnimeDetail = () => {
           .eq("user_id", user.id)
           .eq("mal_id", anime.id);
         setIsInWatchlist(false);
-        toast.success("Anime dihapus dari Watchlist!");
+        toast.success("Dihapus dari Watchlist!");
       } else {
         await supabase.from("watchlist").insert([
           {
@@ -301,10 +343,10 @@ const AnimeDetail = () => {
           },
         ]);
         setIsInWatchlist(true);
-        toast.success("Anime ditambahkan ke Watchlist!");
+        toast.success("Ditambahkan ke Watchlist!");
       }
     } catch (error) {
-      toast.error("Terjadi kesalahan.");
+      toast.error("Terjadi kesalahan sistem.");
     } finally {
       setIsProcessing(false);
     }
@@ -319,7 +361,7 @@ const AnimeDetail = () => {
     if (navigator.share) navigator.share(shareData).catch(() => {});
     else {
       navigator.clipboard.writeText(window.location.href);
-      toast.success("Link disalin!");
+      toast.success("Link disalin ke clipboard!");
     }
   };
 
@@ -339,24 +381,20 @@ const AnimeDetail = () => {
   if (isLoading)
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-red-500 border-transparent"></div>
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.8)]"></div>
       </div>
     );
   if (!anime)
     return (
-      <div className="text-center mt-20 text-gray-400">
+      <div className="text-center mt-32 text-gray-400 font-bold text-xl">
         Anime tidak ditemukan.
       </div>
     );
 
-  const cleanDescription =
-    anime.description?.replace(/<br\s*[\/]?>/gi, "\n") ||
-    "Sinopsis belum tersedia.";
-
   // --- KOMPONEN RENDER ULASAN ---
   const renderReviewBox = (review, isReply = false) => {
     const reviewerName = review.user_email.split("@")[0];
-    const avatar = `https://ui-avatars.com/api/?name=${reviewerName}&background=880000&color=fff&size=128&bold=true`;
+    const avatar = `https://ui-avatars.com/api/?name=${reviewerName}&background=dc2626&color=fff&size=128&bold=true`;
     const isOwner = user && user.id === review.user_id;
     const isEditing = editingReviewId === review.id;
     const likesArray = review.liked_by || [];
@@ -367,46 +405,46 @@ const AnimeDetail = () => {
     return (
       <div
         key={review.id}
-        className={`${isReply ? "ml-8 sm:ml-14 mt-3 border-l-2 border-red-900/50 pl-4" : "bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-md"} transition-all hover:border-red-900/50 relative group`}
+        className={`${isReply ? "ml-8 sm:ml-12 mt-3 border-l-2 border-red-900/40 pl-4" : "bg-[#1a0505]/40 backdrop-blur-md border border-red-900/30 rounded-2xl p-5 sm:p-6 shadow-[0_10px_30px_rgba(0,0,0,0.3)]"} transition-all hover:border-red-500/50 relative group`}
       >
         {isOwner && !isEditing && (
           <div
-            className={`absolute ${isReply ? "-top-1 right-0" : "top-4 right-4"} flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all`}
+            className={`absolute ${isReply ? "-top-1 right-0" : "top-4 right-4"} flex gap-2 opacity-0 group-hover:opacity-100 transition-all`}
           >
             <button
               onClick={() => {
                 setEditingReviewId(review.id);
                 setEditContent(review.content);
               }}
-              className="text-gray-400 hover:text-blue-400 p-1.5 bg-black/40 rounded-lg"
+              className="text-gray-400 hover:text-blue-400 p-1.5 bg-black/50 rounded-lg backdrop-blur-sm border border-white/10"
               title="Edit"
             >
-              <FaPen size={10} />
+              <FaPen size={12} />
             </button>
             <button
               onClick={() => confirmDeleteReview(review.id)}
-              className="text-gray-400 hover:text-red-500 p-1.5 bg-black/40 rounded-lg"
+              className="text-gray-400 hover:text-red-500 p-1.5 bg-black/50 rounded-lg backdrop-blur-sm border border-white/10"
               title="Hapus"
             >
-              <FaTrash size={10} />
+              <FaTrash size={12} />
             </button>
           </div>
         )}
 
-        <div className="flex items-start gap-3 sm:gap-4">
+        <div className="flex items-start gap-4">
           <img
             src={avatar}
             alt="Avatar"
-            className={`${isReply ? "w-8 h-8" : "w-10 h-10 sm:w-12 sm:h-12"} rounded-full border border-red-500/30 flex-shrink-0`}
+            className={`${isReply ? "w-8 h-8" : "w-10 h-10 sm:w-12 sm:h-12"} rounded-full border-2 border-red-500/50 flex-shrink-0 shadow-md`}
           />
           <div className="flex-1 w-full">
-            <div className="flex items-center gap-2 sm:gap-3 mb-1.5">
+            <div className="flex items-center gap-2 sm:gap-3 mb-2">
               <span
                 className={`font-bold text-white ${isReply ? "text-sm" : "text-base"}`}
               >
                 {reviewerName}
               </span>
-              <span className="text-[10px] sm:text-xs text-gray-500">
+              <span className="text-[10px] sm:text-xs text-gray-500 bg-black/40 px-2 py-0.5 rounded-full border border-red-900/30">
                 {new Date(review.created_at).toLocaleDateString("id-ID", {
                   day: "numeric",
                   month: "short",
@@ -415,25 +453,25 @@ const AnimeDetail = () => {
             </div>
 
             {isEditing ? (
-              <div className="mt-2 mb-3 pr-2">
+              <div className="mt-2 mb-3 pr-2 animate-fade-in">
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full bg-slate-900/80 text-white border border-blue-500/50 rounded-xl p-3 min-h-[60px] outline-none resize-none text-sm mb-2"
+                  className="w-full bg-[#0a0202]/80 text-white border border-blue-500/50 rounded-xl p-3 min-h-[80px] outline-none focus:border-blue-400 transition-colors resize-none text-sm mb-2 shadow-inner"
                 />
                 <div className="flex gap-2 justify-end">
                   <button
                     onClick={() => setEditingReviewId(null)}
-                    className="px-4 py-1.5 text-xs font-bold rounded-lg bg-slate-700 text-white"
+                    className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-800 text-gray-300 hover:bg-slate-700 transition-colors"
                   >
                     Batal
                   </button>
                   <button
                     onClick={() => handleUpdateReview(review.id)}
                     disabled={isUpdatingReview}
-                    className="px-4 py-1.5 text-xs font-bold rounded-lg bg-blue-600 text-white"
+                    className="px-4 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors"
                   >
-                    {isUpdatingReview ? "..." : "Simpan"}
+                    {isUpdatingReview ? "Menyimpan..." : "Simpan Perubahan"}
                   </button>
                 </div>
               </div>
@@ -442,9 +480,12 @@ const AnimeDetail = () => {
                 onClick={() =>
                   setRevealedSpoilers((prev) => [...prev, review.id])
                 }
-                className="bg-black/50 border border-dashed border-red-900/50 rounded-xl p-4 cursor-pointer hover:bg-red-900/20 transition-all flex items-center justify-center gap-3 mb-3 text-red-400"
+                className="bg-black/50 border border-dashed border-red-500/50 rounded-xl p-4 cursor-pointer hover:bg-red-900/20 transition-all flex items-center justify-center gap-3 mb-3 text-red-400 shadow-inner group/spoiler"
               >
-                <FaEyeSlash size={18} />
+                <FaEyeSlash
+                  size={18}
+                  className="group-hover/spoiler:scale-110 transition-transform"
+                />
                 <span className="text-sm font-bold tracking-wide">
                   Mengandung Spoiler. Klik untuk melihat.
                 </span>
@@ -458,14 +499,14 @@ const AnimeDetail = () => {
             )}
 
             <div
-              className={`flex items-center gap-4 ${!isReply && "border-t border-slate-800 pt-3 mt-1"}`}
+              className={`flex items-center gap-4 ${!isReply && "border-t border-red-900/30 pt-3 mt-2"}`}
             >
               <button
                 onClick={() => handleLikeReview(review.id, likesArray)}
-                className={`flex items-center gap-1.5 text-xs sm:text-sm font-bold transition-all ${hasLiked ? "text-red-500" : "text-gray-500 hover:text-red-400"}`}
+                className={`flex items-center gap-1.5 text-xs sm:text-sm font-bold transition-all ${hasLiked ? "text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" : "text-gray-500 hover:text-red-400"}`}
               >
                 {hasLiked ? (
-                  <FaHeart className="drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                  <FaHeart className="scale-110 transition-transform" />
                 ) : (
                   <FaRegHeart />
                 )}
@@ -487,26 +528,26 @@ const AnimeDetail = () => {
             </div>
 
             {replyingTo === review.id && !isReply && (
-              <div className="mt-4 flex gap-3 items-start animate-fade-in">
+              <div className="mt-4 flex gap-3 items-start animate-fade-in bg-black/30 p-3 rounded-xl border border-blue-900/30">
                 <div className="flex-1">
                   <textarea
                     value={replyInput}
                     onChange={(e) => setReplyInput(e.target.value)}
                     placeholder={`Balas ${reviewerName}...`}
-                    className="w-full bg-black/40 text-white border border-blue-900/50 focus:border-blue-500 rounded-xl p-3 min-h-[60px] outline-none resize-none text-sm mb-2"
+                    className="w-full bg-[#0a0202]/80 text-white border border-blue-900/50 focus:border-blue-500 rounded-xl p-3 min-h-[60px] outline-none resize-none text-sm mb-2 shadow-inner transition-colors"
                     autoFocus
                   ></textarea>
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setReplyingTo(null)}
-                      className="px-4 py-1.5 text-xs font-bold rounded-lg bg-slate-800 text-gray-400 hover:text-white"
+                      className="px-4 py-1.5 text-xs font-bold rounded-lg bg-slate-800 text-gray-400 hover:text-white transition-colors"
                     >
                       Batal
                     </button>
                     <button
                       onClick={() => handleSubmitReply(review.id)}
                       disabled={isSubmittingReply || !replyInput.trim()}
-                      className="px-4 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1"
+                      className="px-4 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1 transition-colors shadow-[0_0_10px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:shadow-none"
                     >
                       <FaPaperPlane size={10} /> Kirim
                     </button>
@@ -523,308 +564,408 @@ const AnimeDetail = () => {
   };
 
   return (
-    <div className="pb-16 mt-6">
+    <div className="pb-16 min-h-screen relative z-10 pt-16">
       {/* 1. HERO BANNER & KEMBALI */}
-      <div className="relative w-full h-64 md:h-80 lg:h-96 rounded-3xl overflow-hidden mb-8 shadow-2xl border border-red-900/30">
+      <div className="relative w-full h-[35vh] md:h-[45vh] lg:h-[55vh] rounded-b-[3rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border-b border-red-900/50">
         {anime.bannerImage ? (
           <img
             src={anime.bannerImage}
             alt="Banner"
-            className="w-full h-full object-cover opacity-60"
+            className="w-full h-full object-cover opacity-80"
           />
         ) : (
-          <div className="w-full h-full bg-gradient-to-r from-red-950 to-black"></div>
+          <div className="w-full h-full bg-gradient-to-br from-red-950 via-black to-red-900/50"></div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0202] via-[#0a0202]/60 to-transparent"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-[#050101] via-[#050101]/60 to-transparent"></div>
 
-        <Link
-          to="/"
-          className="absolute top-6 left-6 inline-flex items-center gap-2 text-white bg-black/40 backdrop-blur-md px-4 py-2 rounded-full hover:bg-red-600 transition-colors font-medium border border-red-900/50 shadow-lg z-10"
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute top-8 left-4 md:left-8 inline-flex items-center gap-2 text-white bg-black/40 backdrop-blur-md px-5 py-2.5 rounded-full hover:bg-red-600 transition-all font-bold border border-white/10 hover:border-red-400 shadow-xl z-10 group"
         >
-          <FaArrowLeft /> Beranda
-        </Link>
+          <FaArrowLeft className="group-hover:-translate-x-1 transition-transform" />{" "}
+          Kembali
+        </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-8 relative z-10 -mt-20 md:-mt-32 px-4 md:px-8">
-        {/* 2. SIDEBAR KIRI (COVER, TOMBOL, INFO DETAIL) */}
-        <div className="w-full md:w-1/3 lg:w-1/4 flex flex-col gap-6">
-          {/* Cover Image */}
-          <div className="rounded-2xl overflow-hidden shadow-[0_15px_30px_rgba(0,0,0,0.6)] border-2 border-red-900/40 relative group">
-            <img
-              src={anime.coverImage.extraLarge || anime.coverImage.large}
-              alt={anime.title.romaji}
-              className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-            <div className="absolute top-3 right-3 bg-red-600 text-white font-black px-3 py-1 rounded-lg text-lg shadow-lg flex items-center gap-1.5">
-              <FaStar className="text-yellow-300" />{" "}
-              {anime.averageScore
-                ? (anime.averageScore / 10).toFixed(1)
-                : "N/A"}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-20 -mt-24 md:-mt-40">
+        <div className="flex flex-col md:flex-row gap-8 lg:gap-12">
+          {/* 2. SIDEBAR KIRI (COVER, TOMBOL, INFO DETAIL) */}
+          <div className="w-full md:w-1/3 lg:w-1/4 flex flex-col gap-6 mx-auto md:mx-0 max-w-[280px] md:max-w-none">
+            {/* Cover Image */}
+            <div className="rounded-2xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.8)] border-2 border-red-900/50 relative group aspect-[2/3] bg-black">
+              <img
+                src={anime.coverImage.extraLarge || anime.coverImage.large}
+                alt={anime.title.romaji}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+              />
+              <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-md border border-yellow-500/50 text-white font-black px-3 py-1.5 rounded-xl text-lg shadow-lg flex items-center gap-1.5">
+                <FaStar className="text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]" />{" "}
+                {anime.averageScore
+                  ? (anime.averageScore / 10).toFixed(1)
+                  : "N/A"}
+              </div>
             </div>
-          </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={toggleWatchlist}
-              disabled={isProcessing}
-              className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border ${isInWatchlist ? "bg-slate-800/80 text-white border-slate-600" : "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-500/50 hover:scale-[1.02]"}`}
-            >
-              {isProcessing ? (
-                "Memproses..."
-              ) : isInWatchlist ? (
-                <>
-                  <FaCheck className="text-green-400" /> Tersimpan
-                </>
-              ) : (
-                <>
-                  <FaPlus /> Tambah Watchlist
-                </>
-              )}
-            </button>
-            <button
-              onClick={handleShare}
-              className="w-full py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/40 text-gray-300 border-red-900/30 hover:bg-red-900/60 hover:text-white hover:scale-[1.02]"
-            >
-              <FaShareAlt /> Bagikan
-            </button>
-          </div>
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={toggleWatchlist}
+                disabled={isProcessing}
+                className={`w-full py-3.5 rounded-xl font-bold transition-all duration-300 shadow-lg flex items-center justify-center gap-2 border ${isInWatchlist ? "bg-red-900/40 text-red-400 border-red-500/30 hover:bg-red-900/60" : "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-500/50 hover:to-red-500 hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-1"}`}
+              >
+                {isProcessing ? (
+                  <span className="animate-pulse">Memproses...</span>
+                ) : isInWatchlist ? (
+                  <>
+                    <FaCheck className="text-red-400" /> Hapus dari Watchlist
+                  </>
+                ) : (
+                  <>
+                    <FaBookmark /> Tambah Watchlist
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleShare}
+                className="w-full py-3.5 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/60 text-gray-300 border-red-900/40 hover:bg-red-900/40 hover:border-red-500/50 hover:text-white"
+              >
+                <FaShareAlt /> Bagikan Tautan
+              </button>
+            </div>
 
-          {/* Detailed Info Table */}
-          <div className="bg-[#1a0505]/60 backdrop-blur-md rounded-2xl p-5 border border-red-900/30 flex flex-col gap-3">
-            <h4 className="text-white font-bold flex items-center gap-2 mb-2 border-b border-red-900/50 pb-2">
-              <FaInfoCircle className="text-red-500" /> Informasi
-            </h4>
-
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400 font-medium">Format</span>
-              <span className="text-white font-bold">
-                {anime.format?.replace("_", " ") || "?"}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400 font-medium">Episode</span>
-              <span className="text-white font-bold">
-                {anime.episodes || "?"}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400 font-medium">Durasi</span>
-              <span className="text-white font-bold">
-                {anime.duration ? `${anime.duration} menit` : "?"}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400 font-medium">Status</span>
-              <span className="text-white font-bold">
-                {anime.status?.replace("_", " ") || "?"}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400 font-medium">Musim</span>
-              <span className="text-white font-bold capitalize">
-                {anime.season
-                  ? `${anime.season.toLowerCase()} ${anime.seasonYear}`
-                  : "?"}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400 font-medium">Studio</span>
-              <span className="text-red-400 font-bold text-right">
-                {anime.studios?.nodes?.[0]?.name || "?"}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400 font-medium">Sumber</span>
-              <span className="text-white font-bold capitalize">
-                {anime.source?.replace("_", " ").toLowerCase() || "?"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. AREA UTAMA KANAN */}
-        <div className="w-full md:w-2/3 lg:w-3/4 flex flex-col gap-10 mt-4 md:mt-24">
-          {/* Judul & Sinopsis */}
-          <div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-2 tracking-tight drop-shadow-lg">
-              {anime.title.romaji}
-            </h1>
-            <h2 className="text-lg md:text-xl text-red-200/60 italic mb-6 font-medium">
-              {anime.title.english || anime.title.native}
-            </h2>
-
-            <div className="flex flex-wrap gap-2 mb-6">
-              {anime.genres.map((genre, index) => (
-                <span
-                  key={index}
-                  className="bg-red-900/20 text-red-300 px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold border border-red-800/40 shadow-sm"
+            {/* Detailed Info Table Glassmorphism */}
+            <div className="bg-[#1a0505]/60 backdrop-blur-xl rounded-[2rem] p-6 border border-red-900/40 shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex flex-col gap-4">
+              <h4 className="text-white font-bold flex items-center gap-2 mb-2 border-b border-red-900/30 pb-3 uppercase tracking-wider text-sm">
+                <FaInfoCircle className="text-red-500" /> Informasi Teknis
+              </h4>
+              {[
+                { label: "Format", value: anime.format?.replace("_", " ") },
+                { label: "Episode", value: anime.episodes },
+                {
+                  label: "Durasi",
+                  value: anime.duration ? `${anime.duration} menit` : null,
+                },
+                { label: "Status", value: anime.status?.replace("_", " ") },
+                {
+                  label: "Musim",
+                  value: anime.season
+                    ? `${anime.season.toLowerCase()} ${anime.seasonYear}`
+                    : null,
+                },
+                {
+                  label: "Studio",
+                  value: anime.studios?.nodes?.[0]?.name,
+                  highlight: true,
+                },
+                {
+                  label: "Sumber",
+                  value: anime.source?.replace("_", " ").toLowerCase(),
+                },
+              ].map((info, idx) => (
+                <div
+                  key={idx}
+                  className="flex justify-between items-center text-sm border-b border-red-900/10 pb-2 last:border-0 last:pb-0"
                 >
-                  {genre}
-                </span>
+                  <span className="text-gray-400 font-medium">
+                    {info.label}
+                  </span>
+                  <span
+                    className={`font-bold capitalize text-right ${info.highlight ? "text-red-400 bg-red-900/20 px-2 py-0.5 rounded-md border border-red-900/30" : "text-gray-200"}`}
+                  >
+                    {info.value || "?"}
+                  </span>
+                </div>
               ))}
             </div>
-
-            <p className="text-gray-300 leading-relaxed text-sm md:text-base text-justify opacity-90 whitespace-pre-line bg-black/30 p-6 rounded-2xl border border-red-900/20 backdrop-blur-sm">
-              {cleanDescription}
-            </p>
           </div>
 
-          {/* KARAKTER & SEIYUU */}
-          {anime.characters?.edges?.length > 0 && (
+          {/* 3. AREA UTAMA KANAN */}
+          <div className="flex-1 flex flex-col gap-12 mt-4 md:mt-24">
+            {/* Judul & Sinopsis */}
             <div>
-              <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-                <FaUsers className="text-red-500" /> Karakter & Pengisi Suara
-              </h3>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                {anime.characters.edges.map((edge, index) => {
-                  const char = edge.node;
-                  const va = edge.voiceActors[0];
-                  return (
-                    <div
-                      key={index}
-                      className="bg-[#1a0505]/40 backdrop-blur-md border border-red-900/30 rounded-xl p-3 flex justify-between items-center transition-all hover:border-red-500/50 shadow-md group"
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-2 leading-tight tracking-tighter drop-shadow-lg">
+                {anime.title.romaji}
+              </h1>
+              <h2 className="text-lg md:text-xl text-gray-400 font-medium mb-6">
+                {anime.title.english || anime.title.native}
+              </h2>
+
+              <div className="flex flex-wrap gap-2 mb-8">
+                {anime.genres.map((genre, index) => (
+                  <span
+                    key={index}
+                    className="bg-red-900/20 text-red-300 px-4 py-1.5 rounded-lg text-sm font-bold border border-red-800/40 shadow-sm uppercase tracking-wider hover:bg-red-900/40 transition-colors cursor-default"
+                  >
+                    {genre}
+                  </span>
+                ))}
+              </div>
+
+              <div className="bg-[#1a0505]/40 backdrop-blur-md border border-red-900/30 p-6 sm:p-8 rounded-[2rem] shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+                <div
+                  className="text-gray-300/90 text-sm sm:text-base leading-relaxed prose prose-invert prose-p:mb-4 prose-a:text-red-400 hover:prose-a:text-red-300 max-w-none text-justify"
+                  dangerouslySetInnerHTML={{
+                    __html: anime.description || "Sinopsis belum tersedia.",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* RELASI & SILSILAH (DARI FITUR SEBELUMNYA) */}
+            {anime.relations && anime.relations.edges.length > 0 && (
+              <div>
+                <div className="mb-6 flex items-center gap-4 border-b border-red-900/30 pb-4">
+                  <div className="bg-purple-900/30 p-3 rounded-xl border border-purple-500/20 shadow-inner">
+                    <FaSitemap className="text-purple-400 text-xl drop-shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black text-white tracking-tight">
+                      Hubungan Silsilah
+                    </h3>
+                    <p className="text-sm text-gray-400">
+                      Prekuel, sekuel, dan versi alternatif.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {anime.relations.edges.map((relation, idx) => (
+                    <Link
+                      to={`/anime/${relation.node.id}`}
+                      key={`${relation.node.id}-${idx}`}
+                      className="bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/30 rounded-2xl p-3 flex gap-4 hover:bg-red-900/20 hover:border-red-500/50 hover:-translate-y-1 transition-all shadow-lg group"
                     >
-                      <div className="flex items-center gap-3 w-1/2">
+                      <div className="w-16 sm:w-20 flex-shrink-0 rounded-lg overflow-hidden relative border border-red-900/40">
                         <img
-                          src={char.image?.large}
-                          alt={char.name.full}
-                          className="w-12 h-16 object-cover rounded-lg shadow-md border border-red-900/50 group-hover:scale-105 transition-transform"
+                          src={relation.node.coverImage.large}
+                          alt={relation.node.title.romaji}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform"
                         />
-                        <div className="flex flex-col">
-                          <span className="font-bold text-white text-xs md:text-sm line-clamp-1">
-                            {char.name.full}
-                          </span>
-                          <span className="text-[10px] md:text-xs text-red-400 font-medium uppercase">
-                            {edge.role}
+                        <div className="absolute bottom-1 right-1 bg-black/80 backdrop-blur-sm p-1 rounded text-gray-300 text-[10px] border border-white/10">
+                          {relation.node.type === "MANGA" ? (
+                            <FaBook />
+                          ) : (
+                            <FaTv />
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col justify-center flex-1 overflow-hidden">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-purple-400 mb-1">
+                          {translateRelation(relation.relationType)}
+                        </span>
+                        <h4 className="text-white text-sm font-bold leading-tight line-clamp-2 group-hover:text-red-300 transition-colors">
+                          {relation.node.title.romaji}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-gray-400 bg-black/40 px-1.5 py-0.5 rounded-md border border-gray-800">
+                            {relation.node.format}
                           </span>
                         </div>
                       </div>
-                      {va && (
-                        <div className="flex items-center gap-3 w-1/2 justify-end text-right">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-white text-xs md:text-sm line-clamp-1">
-                              {va.name.full}
-                            </span>
-                            <span className="text-[10px] md:text-xs text-gray-400 uppercase">
-                              Japanese
-                            </span>
-                          </div>
-                          <img
-                            src={va.image?.large}
-                            alt={va.name.full}
-                            className="w-12 h-16 object-cover rounded-lg shadow-md border border-slate-700 group-hover:scale-105 transition-transform"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* TRAILER */}
-          {anime.trailer && anime.trailer.site === "youtube" && (
-            <div>
-              <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-                <FaYoutube className="text-red-500" /> Trailer Resmi
-              </h3>
-              <div className="relative w-full aspect-video rounded-3xl overflow-hidden border border-red-900/40 shadow-[0_15px_40px_rgba(220,38,38,0.2)] bg-black">
-                <iframe
-                  src={`https://www.youtube.com/embed/${anime.trailer.id}?rel=0`}
-                  title="Anime Trailer"
-                  allowFullScreen
-                  className="absolute top-0 left-0 w-full h-full"
-                ></iframe>
-              </div>
-            </div>
-          )}
-
-          {/* KOMUNITAS & ULASAN */}
-          <div className="pt-8 border-t border-red-900/30">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-              <h3 className="text-2xl font-bold text-white flex items-center gap-3">
-                <FaComments className="text-red-500" /> Komunitas & Ulasan
-              </h3>
-              <div className="flex bg-black/40 border border-red-900/30 rounded-lg p-1 w-max shadow-inner">
-                <button
-                  onClick={() => setSortBy("terbaru")}
-                  className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${sortBy === "terbaru" ? "bg-red-600/80 text-white" : "text-gray-400 hover:text-white"}`}
-                >
-                  <FaClock /> Terbaru
-                </button>
-                <button
-                  onClick={() => setSortBy("terpopuler")}
-                  className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all ${sortBy === "terpopuler" ? "bg-red-600/80 text-white" : "text-gray-400 hover:text-white"}`}
-                >
-                  <FaFire /> Terpopuler
-                </button>
-              </div>
-            </div>
-
-            {user ? (
-              <form
-                onSubmit={handleSubmitReview}
-                className="bg-black/40 backdrop-blur-md border border-red-900/40 p-5 rounded-3xl mb-10 shadow-xl relative"
-              >
-                <textarea
-                  value={reviewInput}
-                  onChange={(e) => setReviewInput(e.target.value)}
-                  placeholder="Tuliskan pendapatmu tentang anime ini..."
-                  className="w-full bg-[#0a0202]/80 text-white border border-red-900/50 rounded-xl p-4 min-h-[120px] outline-none focus:border-red-500 transition-all resize-none text-sm md:text-base shadow-inner"
-                ></textarea>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-4">
-                  <label className="flex items-center gap-2 cursor-pointer group bg-red-950/30 px-4 py-2 rounded-lg border border-red-900/20 w-max">
-                    <input
-                      type="checkbox"
-                      checked={isSpoilerInput}
-                      onChange={(e) => setIsSpoilerInput(e.target.checked)}
-                      className="w-4 h-4 accent-red-600 cursor-pointer"
-                    />
-                    <span className="text-xs font-bold text-gray-400 group-hover:text-red-300 transition-colors uppercase tracking-wider">
-                      Awas Spoiler
-                    </span>
-                  </label>
-                  <button
-                    type="submit"
-                    disabled={isSubmittingReview || !reviewInput.trim()}
-                    className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:from-slate-700 disabled:to-slate-800 text-white px-8 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all hover:scale-[1.02]"
-                  >
-                    {isSubmittingReview ? (
-                      "Mengirim..."
-                    ) : (
-                      <>
-                        <FaPaperPlane /> Kirim Ulasan
-                      </>
-                    )}
-                  </button>
+                    </Link>
+                  ))}
                 </div>
-              </form>
-            ) : (
-              <div className="bg-red-900/10 border border-red-900/30 p-8 rounded-3xl mb-10 text-center backdrop-blur-sm">
-                <p className="text-gray-300 mb-5 font-medium">
-                  Kamu harus masuk untuk ikut berdiskusi di komunitas.
-                </p>
-                <Link
-                  to="/auth"
-                  className="inline-block bg-red-600 hover:bg-red-500 text-white px-8 py-3 rounded-full font-bold shadow-[0_0_15px_rgba(220,38,38,0.4)] transition-transform hover:scale-105"
-                >
-                  Masuk ke RAIHANEX
-                </Link>
               </div>
             )}
 
-            <div className="flex flex-col gap-4">
-              {sortedMainReviews.length === 0 ? (
-                <div className="text-center py-12 text-gray-500 font-medium border border-dashed border-red-900/30 rounded-3xl bg-black/20">
-                  Jadilah yang pertama memberikan ulasan!
+            {/* TRAILER YOUTUBE */}
+            {anime.trailer && anime.trailer.site === "youtube" && (
+              <div>
+                <div className="mb-6 flex items-center gap-4 border-b border-red-900/30 pb-4">
+                  <div className="bg-red-900/30 p-3 rounded-xl border border-red-500/20 shadow-inner">
+                    <FaYoutube className="text-red-500 text-xl drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+                  </div>
+                  <h3 className="text-2xl font-black text-white tracking-tight">
+                    Trailer Resmi
+                  </h3>
                 </div>
+                <div className="relative w-full aspect-video rounded-[2rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] border-4 border-red-900/30 bg-black group">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${anime.trailer.id}?rel=0`}
+                    title="Trailer"
+                    allowFullScreen
+                    className="absolute top-0 left-0 w-full h-full"
+                  ></iframe>
+                </div>
+              </div>
+            )}
+
+            {/* KARAKTER & SEIYUU */}
+            {anime.characters?.edges?.length > 0 && (
+              <div>
+                <div className="mb-6 flex items-center gap-4 border-b border-red-900/30 pb-4">
+                  <div className="bg-blue-900/30 p-3 rounded-xl border border-blue-500/20 shadow-inner">
+                    <FaUsers className="text-blue-400 text-xl drop-shadow-[0_0_10px_rgba(96,165,250,0.8)]" />
+                  </div>
+                  <h3 className="text-2xl font-black text-white tracking-tight">
+                    Karakter Utama
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {anime.characters.edges.map((edge, index) => {
+                    const char = edge.node;
+                    const va = edge.voiceActors[0];
+                    return (
+                      <div
+                        key={index}
+                        className="bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/30 rounded-2xl p-3 flex justify-between items-center transition-all hover:border-red-500/40 hover:bg-red-900/10 shadow-lg group"
+                      >
+                        <div className="flex items-center gap-3 w-1/2">
+                          <img
+                            src={char.image?.large}
+                            alt={char.name.full}
+                            className="w-12 h-16 object-cover rounded-xl shadow-md border border-red-900/50 group-hover:scale-105 transition-transform"
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-white text-sm line-clamp-1">
+                              {char.name.full}
+                            </span>
+                            <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">
+                              {edge.role}
+                            </span>
+                          </div>
+                        </div>
+                        {va && (
+                          <div className="flex items-center gap-3 w-1/2 justify-end text-right">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-white text-sm line-clamp-1">
+                                {va.name.full}
+                              </span>
+                              <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">
+                                Jepang
+                              </span>
+                            </div>
+                            <img
+                              src={va.image?.large}
+                              alt={va.name.full}
+                              className="w-12 h-16 object-cover rounded-xl shadow-md border border-slate-800 group-hover:scale-105 transition-transform"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* --- KOMUNITAS & ULASAN --- */}
+            <div className="mt-8 border-t-2 border-red-900/30 pt-12 relative">
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-64 h-32 bg-red-600/10 rounded-full blur-[60px] pointer-events-none"></div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4">
+                  <div className="bg-red-900/30 p-3 rounded-xl border border-red-500/20 shadow-inner">
+                    <FaComments className="text-red-500 text-xl drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                      Ruang Diskusi
+                    </h3>
+                    <p className="text-sm text-gray-400 mt-1">
+                      {reviews.length} ulasan dari komunitas RAIHANEX.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Filter Ulasan */}
+                <div className="flex bg-black/60 border border-red-900/40 rounded-xl p-1.5 w-max shadow-inner backdrop-blur-md">
+                  <button
+                    onClick={() => setSortBy("terbaru")}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${sortBy === "terbaru" ? "bg-red-600 text-white shadow-md" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
+                  >
+                    <FaClock /> Terbaru
+                  </button>
+                  <button
+                    onClick={() => setSortBy("terpopuler")}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${sortBy === "terpopuler" ? "bg-red-600 text-white shadow-md" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
+                  >
+                    <FaFire /> Terpopuler
+                  </button>
+                </div>
+              </div>
+
+              {/* Form Input Ulasan Baru */}
+              {user ? (
+                <form
+                  onSubmit={handleSubmitReview}
+                  className="bg-[#1a0505]/80 backdrop-blur-2xl border border-red-900/50 p-6 rounded-[2rem] mb-12 shadow-[0_20px_40px_rgba(0,0,0,0.4)] relative overflow-hidden group/form"
+                >
+                  <div className="absolute top-0 left-0 w-1 bg-red-600 h-full"></div>
+
+                  <textarea
+                    value={reviewInput}
+                    onChange={(e) => setReviewInput(e.target.value)}
+                    placeholder="Tuliskan pendapat epikmu tentang anime ini..."
+                    className="w-full bg-black/50 text-white border border-red-900/40 rounded-xl p-5 min-h-[140px] outline-none focus:border-red-500/80 transition-all resize-none text-sm md:text-base shadow-inner placeholder-gray-600"
+                  ></textarea>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6">
+                    <label className="flex items-center gap-3 cursor-pointer group bg-black/40 hover:bg-red-900/20 px-5 py-3 rounded-xl border border-red-900/30 w-max transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={isSpoilerInput}
+                        onChange={(e) => setIsSpoilerInput(e.target.checked)}
+                        className="w-4 h-4 accent-red-600 cursor-pointer rounded"
+                      />
+                      <span className="text-xs font-bold text-gray-400 group-hover:text-red-300 transition-colors uppercase tracking-wider flex items-center gap-2">
+                        <FaEyeSlash /> Tandai Sebagai Spoiler
+                      </span>
+                    </label>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmittingReview || !reviewInput.trim()}
+                      className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:from-slate-800 disabled:to-black text-white px-8 py-3.5 rounded-xl font-bold flex items-center justify-center gap-3 shadow-[0_10px_20px_rgba(220,38,38,0.3)] transition-all hover:-translate-y-1 disabled:opacity-50 disabled:shadow-none disabled:transform-none"
+                    >
+                      {isSubmittingReview ? (
+                        <span className="animate-pulse">Mengirim...</span>
+                      ) : (
+                        <>
+                          <FaPaperPlane /> Kirim Ulasan Publik
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
               ) : (
-                sortedMainReviews.map((review) =>
-                  renderReviewBox(review, false),
-                )
+                <div className="bg-gradient-to-br from-red-950/40 to-black/60 border border-red-900/40 p-10 rounded-[2rem] mb-12 text-center backdrop-blur-xl shadow-lg relative overflow-hidden">
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-red-900/20 text-9xl pointer-events-none">
+                    <FaComments />
+                  </div>
+                  <h4 className="text-2xl font-black text-white mb-2 relative z-10">
+                    Suaramu Dibutuhkan!
+                  </h4>
+                  <p className="text-gray-400 mb-8 font-medium relative z-10 max-w-md mx-auto">
+                    Bergabunglah dengan ribuan otaku lainnya. Masuk sekarang
+                    untuk membagikan teori, ulasan, dan pendapatmu.
+                  </p>
+                  <Link
+                    to="/auth"
+                    className="relative z-10 inline-flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white px-10 py-4 rounded-full font-bold shadow-[0_0_20px_rgba(220,38,38,0.5)] transition-all hover:scale-105"
+                  >
+                    Masuk ke RAIHANEX &rarr;
+                  </Link>
+                </div>
               )}
+
+              {/* Daftar Ulasan */}
+              <div className="flex flex-col gap-6">
+                {sortedMainReviews.length === 0 ? (
+                  <div className="text-center py-16 text-gray-500 font-bold border-2 border-dashed border-red-900/20 rounded-[2rem] bg-[#1a0505]/20 backdrop-blur-sm">
+                    <p className="text-lg text-gray-400 mb-1">
+                      Belum ada jejak diskusi di sini.
+                    </p>
+                    <p className="text-sm">
+                      Jadilah pionir yang memberikan ulasan pertama!
+                    </p>
+                  </div>
+                ) : (
+                  sortedMainReviews.map((review) =>
+                    renderReviewBox(review, false),
+                  )
+                )}
+              </div>
             </div>
           </div>
         </div>
