@@ -41,18 +41,25 @@ export const fetchAniList = async (query, variables = {}, options = {}) => {
     }),
   });
 
-  // Handle 429 Too Many Requests dengan auto-retry 1x
-  if (response.status === 429 && retryCount < 1) {
-    const retryAfter = parseInt(response.headers.get("Retry-After") || "1", 10);
-    await delay(Math.min(retryAfter * 1000, 1500));
+  // Handle 429 Too Many Requests dengan auto-retry
+  if (response.status === 429 && retryCount < 2) {
+    const headerVal = response.headers.get("Retry-After");
+    const retryAfter = headerVal ? parseInt(headerVal, 10) : (retryCount + 1) * 1.5;
+    await delay(Math.max(1000, retryAfter * 1000));
     return fetchAniList(query, variables, { ...options, retryCount: retryCount + 1 });
   }
 
-  const json = await response.json();
+  let json;
+  try {
+    json = await response.json();
+  } catch {
+    throw new Error("Gagal memproses data respon dari AniList.");
+  }
 
-  // Tangkap error jika GraphQL gagal
-  if (!response.ok) {
-    throw new Error(json.errors?.[0]?.message || "Gagal terhubung ke AniList");
+  // Tangkap error jika HTTP status error atau terdapat GraphQL errors
+  if (!response.ok || (json.errors && json.errors.length > 0)) {
+    const errorMsg = json.errors?.[0]?.message || `Gagal terhubung ke AniList (Status: ${response.status})`;
+    throw new Error(errorMsg);
   }
 
   // 3. Simpan ke Cache jika berhasil

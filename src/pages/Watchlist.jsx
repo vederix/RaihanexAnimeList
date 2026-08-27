@@ -11,6 +11,7 @@ const Watchlist = () => {
   const { user } = useAuth();
   const [savedAnime, setSavedAnime] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const [activeTab, setActiveTab] = useState("Semua");
 
   const tabs = [
@@ -20,42 +21,47 @@ const Watchlist = () => {
     { id: "Completed", label: "Completed", icon: <FaCheck /> },
   ];
 
+  const loadWatchlist = async (isCancelled = false) => {
+    if (!user) {
+      if (!isCancelled) {
+        setSavedAnime([]);
+        setIsLoading(false);
+      }
+      return;
+    }
+    setFetchError(null);
+    try {
+      const { data, error } = await supabase
+        .from("watchlist")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      if (!isCancelled) {
+        setSavedAnime(data || []);
+      }
+    } catch (err) {
+      console.error("Gagal memuat watchlist:", err);
+      if (!isCancelled) {
+        setFetchError("Gagal memuat data Watchlist dari server. Periksa koneksi internetmu.");
+        toast.error("Gagal memuat Watchlist.");
+      }
+    } finally {
+      if (!isCancelled) {
+        setIsLoading(false);
+      }
+    }
+  };
+
   useEffect(() => {
     let isCancelled = false;
-
-    const loadWatchlist = async () => {
-      if (!user) {
-        if (!isCancelled) {
-          setSavedAnime([]);
-          setIsLoading(false);
-        }
-        return;
-      }
-      try {
-        const { data, error } = await supabase
-          .from("watchlist")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        if (!isCancelled) {
-          setSavedAnime(data || []);
-        }
-      } catch (err) {
-        console.error("Gagal memuat watchlist:", err);
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadWatchlist();
+    loadWatchlist(isCancelled);
 
     return () => {
       isCancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // --- FUNGSI UPDATE STATUS TONTONAN ---
@@ -66,13 +72,13 @@ const Watchlist = () => {
         .from("watchlist")
         .update({ status_tontonan: newStatus })
         .eq("user_id", user.id)
-        .eq("mal_id", animeId);
+        .eq("anilist_id", animeId);
 
       if (error) throw error;
 
       setSavedAnime((prev) =>
         prev.map((anime) =>
-          anime.mal_id === animeId
+          anime.anilist_id === animeId
             ? { ...anime, status_tontonan: newStatus }
             : anime,
         ),
@@ -91,13 +97,13 @@ const Watchlist = () => {
         .from("watchlist")
         .update({ rating_pribadi: newRating })
         .eq("user_id", user.id)
-        .eq("mal_id", animeId);
+        .eq("anilist_id", animeId);
 
       if (error) throw error;
 
       setSavedAnime((prev) =>
         prev.map((anime) =>
-          anime.mal_id === animeId
+          anime.anilist_id === animeId
             ? { ...anime, rating_pribadi: newRating }
             : anime,
         ),
@@ -112,18 +118,24 @@ const Watchlist = () => {
   const updateEpisodesWatched = async (animeId, newEpisodesWatched) => {
     if (!user) return;
     if (newEpisodesWatched < 0) return;
+
+    const target = savedAnime.find((a) => a.anilist_id === animeId);
+    if (target && target.total_episodes && newEpisodesWatched > target.total_episodes) {
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from("watchlist")
         .update({ episodes_watched: newEpisodesWatched })
         .eq("user_id", user.id)
-        .eq("mal_id", animeId);
+        .eq("anilist_id", animeId);
 
       if (error) throw error;
 
       setSavedAnime((prev) =>
         prev.map((anime) =>
-          anime.mal_id === animeId
+          anime.anilist_id === animeId
             ? { ...anime, episodes_watched: newEpisodesWatched }
             : anime,
         ),
@@ -141,10 +153,10 @@ const Watchlist = () => {
         .from("watchlist")
         .delete()
         .eq("user_id", user.id)
-        .eq("mal_id", animeId);
+        .eq("anilist_id", animeId);
       if (error) throw error;
       setSavedAnime((prev) =>
-        prev.filter((anime) => anime.mal_id !== animeId),
+        prev.filter((anime) => anime.anilist_id !== animeId),
       );
       toast.success("Anime dihapus dari Watchlist!");
     } catch {
@@ -212,7 +224,8 @@ const Watchlist = () => {
 
       {/* 2. VISUALISASI DATA (ANALYTICS DASHBOARD) */}
       {savedAnime.length > 0 && (
-        <div className="bg-[#1a0505]/50 backdrop-blur-xl border border-red-900/40 rounded-3xl p-6 sm:p-8 mb-10 shadow-[0_15px_40px_rgba(0,0,0,0.5)] flex flex-col md:flex-row items-center gap-8">
+        <div className="glass-card rounded-3xl p-6 sm:p-8 mb-10 shadow-[0_30px_60px_rgba(0,0,0,0.8)] flex flex-col md:flex-row items-center gap-8 relative overflow-hidden animate-scale-up">
+          <div className="absolute -top-32 -right-32 w-64 h-64 bg-red-600/10 rounded-full blur-[80px] pointer-events-none"></div>
           {/* Teks & Angka */}
           <div className="flex-1 w-full text-center md:text-left">
             <h2 className="text-2xl font-bold text-white mb-2">
@@ -311,15 +324,15 @@ const Watchlist = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`snap-center shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all backdrop-blur-md border cursor-pointer ${
+              className={`snap-center shrink-0 flex items-center gap-2 px-6 py-3 rounded-full text-xs sm:text-sm font-bold transition-all border cursor-pointer active:scale-95 ${
                 activeTab === tab.id
-                  ? "bg-red-600 text-white border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)]"
-                  : "bg-black/40 text-gray-400 border-red-900/30 hover:border-red-500 hover:text-white"
+                  ? "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)]"
+                  : "bg-black/40 text-gray-400 border-red-900/30 hover:border-red-500/50 hover:text-white hover:bg-[#1a0505]/60"
               }`}
             >
               {tab.icon} {tab.label}
               <span
-                className={`ml-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-xs ${activeTab === tab.id ? "bg-white/20" : "bg-red-900/50"}`}
+                className={`ml-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black shadow-inner ${activeTab === tab.id ? "bg-white/20 text-white" : "bg-red-950/60 text-red-300 border border-red-900/40"}`}
               >
                 {count}
               </span>
@@ -328,16 +341,30 @@ const Watchlist = () => {
         })}
       </div>
 
-      {/* 4. GRID DATA / KONDISI KOSONG */}
-      {filteredAnime.length === 0 ? (
-        <div className="bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/30 p-8 sm:p-12 rounded-3xl text-center shadow-lg max-w-2xl mx-auto">
-          <span className="text-4xl sm:text-5xl mb-4 sm:mb-6 block">🍃</span>
-          <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">
+      {/* 4. GRID DATA / ERROR / KONDISI KOSONG */}
+      {fetchError ? (
+        <div className="glass-card p-8 sm:p-12 rounded-3xl text-center max-w-2xl mx-auto shadow-[0_20px_40px_rgba(0,0,0,0.5)] animate-fade-in border border-red-500/30">
+          <span className="text-4xl sm:text-5xl mb-4 sm:mb-6 block drop-shadow-lg">⚠️</span>
+          <h2 className="text-xl sm:text-2xl font-black text-white mb-2 tracking-tight drop-shadow-md">
+            Gagal Memuat Watchlist
+          </h2>
+          <p className="text-zinc-400 text-sm mb-6 max-w-md mx-auto">{fetchError}</p>
+          <button
+            onClick={() => loadWatchlist(false)}
+            className="btn-primary py-3 px-8 text-sm sm:text-base shadow-[0_0_20px_rgba(220,38,38,0.3)] active:scale-95"
+          >
+            Coba Muat Ulang
+          </button>
+        </div>
+      ) : filteredAnime.length === 0 ? (
+        <div className="glass-card p-8 sm:p-12 rounded-3xl text-center max-w-2xl mx-auto shadow-[0_20px_40px_rgba(0,0,0,0.5)] animate-fade-in border-t border-red-900/50">
+          <span className="text-4xl sm:text-5xl mb-4 sm:mb-6 block drop-shadow-lg">🍃</span>
+          <h2 className="text-xl sm:text-2xl font-black text-white mb-3 tracking-tight drop-shadow-md">
             Belum ada anime di kategori ini!
           </h2>
           <Link
             to="/search"
-            className="inline-block mt-4 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-6 py-3 rounded-xl font-bold text-sm sm:text-base shadow-[0_0_20px_rgba(220,38,38,0.3)] cursor-pointer"
+            className="inline-block mt-4 btn-primary py-3 px-8 text-sm sm:text-base shadow-[0_0_20px_rgba(220,38,38,0.3)]"
           >
             Cari Anime
           </Link>
@@ -346,12 +373,12 @@ const Watchlist = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
           {filteredAnime.map((anime) => (
             <div
-              key={anime.mal_id}
-              className="bg-slate-900/80 rounded-2xl overflow-hidden border border-slate-700/50 hover:border-red-500 transition-all duration-300 relative group flex flex-col shadow-lg"
+              key={anime.anilist_id}
+              className="glass-card glass-card-hover rounded-2xl overflow-hidden relative flex flex-col"
             >
               {/* Gambar Cover */}
               <div className="relative h-48 sm:h-64 overflow-hidden bg-black">
-                <Link to={`/anime/${anime.mal_id}`}>
+                <Link to={`/anime/${anime.anilist_id}`}>
                   <img
                     src={anime.image_url}
                     alt={anime.title}
@@ -362,8 +389,8 @@ const Watchlist = () => {
 
                 {/* Tombol Hapus Mengambang */}
                 <button
-                  onClick={() => handleRemoveItem(anime.mal_id)}
-                  className="absolute top-3 right-3 bg-red-600/90 hover:bg-red-500 backdrop-blur-md text-white p-2.5 rounded-lg transition-all shadow-lg hover:scale-110 z-10 cursor-pointer"
+                  onClick={() => handleRemoveItem(anime.anilist_id)}
+                  className="absolute top-3 right-3 bg-red-950/80 hover:bg-red-600 border border-red-500/40 text-red-200 hover:text-white p-2.5 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] active:scale-90 z-10 cursor-pointer"
                   title="Hapus dari Watchlist"
                 >
                   <FaTrash size={12} />
@@ -371,9 +398,9 @@ const Watchlist = () => {
               </div>
 
               {/* Teks Judul & Kontrol Tracker */}
-              <div className="p-4 sm:p-5 flex flex-col flex-grow justify-between bg-slate-900/90 relative z-10 -mt-8 sm:-mt-10">
-                <Link to={`/anime/${anime.mal_id}`}>
-                  <h3 className="font-bold text-white line-clamp-2 text-base sm:text-lg mb-4 hover:text-red-400 transition-colors drop-shadow-md leading-tight">
+              <div className="p-4 sm:p-5 flex flex-col flex-grow justify-between bg-gradient-to-b from-black/80 to-[#0a0202] relative z-10 -mt-8 sm:-mt-10 border-t border-red-900/30">
+                <Link to={`/anime/${anime.anilist_id}`}>
+                  <h3 className="font-black text-white line-clamp-2 text-base sm:text-lg mb-4 hover:text-red-400 transition-colors drop-shadow-md leading-tight">
                     {anime.title}
                   </h3>
                 </Link>
@@ -387,9 +414,9 @@ const Watchlist = () => {
                     <select
                       value={anime.status_tontonan || "Plan to Watch"}
                       onChange={(e) =>
-                        updateStatus(anime.mal_id, e.target.value)
+                        updateStatus(anime.anilist_id, e.target.value)
                       }
-                      className="bg-black/60 text-white border border-red-900/50 rounded-lg px-3 py-2 text-sm outline-none focus:border-red-500 transition-colors cursor-pointer"
+                      className="input-field px-3 py-2 text-sm appearance-none cursor-pointer"
                     >
                       <option value="Plan to Watch">Plan to Watch</option>
                       <option value="Watching">Watching</option>
@@ -409,9 +436,9 @@ const Watchlist = () => {
                       <select
                         value={anime.rating_pribadi || 0}
                         onChange={(e) =>
-                          updateRating(anime.mal_id, parseInt(e.target.value, 10))
+                          updateRating(anime.anilist_id, parseInt(e.target.value, 10))
                         }
-                        className="w-full bg-black/60 text-white border border-red-900/50 rounded-lg py-2 pl-9 pr-3 text-sm outline-none focus:border-red-500 transition-colors cursor-pointer appearance-none"
+                        className="input-field py-2 pl-9 pr-3 text-sm appearance-none cursor-pointer w-full"
                       >
                         <option value="0">Belum Dinilai</option>
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
@@ -435,7 +462,7 @@ const Watchlist = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => updateEpisodesWatched(anime.mal_id, Math.max(0, (anime.episodes_watched || 0) - 1))}
+                        onClick={() => updateEpisodesWatched(anime.anilist_id, Math.max(0, (anime.episodes_watched || 0) - 1))}
                         className="bg-black/60 hover:bg-red-900/40 text-gray-400 hover:text-white border border-red-900/50 rounded-lg p-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={!anime.episodes_watched || anime.episodes_watched <= 0}
                       >
@@ -450,7 +477,7 @@ const Watchlist = () => {
                       </div>
 
                       <button
-                        onClick={() => updateEpisodesWatched(anime.mal_id, (anime.episodes_watched || 0) + 1)}
+                        onClick={() => updateEpisodesWatched(anime.anilist_id, (anime.episodes_watched || 0) + 1)}
                         className="bg-black/60 hover:bg-green-900/40 text-gray-400 hover:text-white border border-green-900/50 rounded-lg p-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={anime.total_episodes && (anime.episodes_watched || 0) >= anime.total_episodes}
                       >

@@ -93,7 +93,7 @@ export default function ImportWatchlistModal({ isOpen, onClose, user }) {
             seenIds.add(entry.media.id);
             inserts.push({
               user_id: user.id,
-              mal_id: entry.media.id,
+              anilist_id: entry.media.id,
               title: entry.media.title?.romaji || entry.media.title?.english || "Anime",
               image_url: entry.media.coverImage?.large || "",
               score: entry.media.averageScore ? entry.media.averageScore / 10 : 0,
@@ -113,7 +113,7 @@ export default function ImportWatchlistModal({ isOpen, onClose, user }) {
 
       // Batch upsert to Supabase
       const { error: dbError } = await supabase.from("watchlist").upsert(inserts, {
-        onConflict: "user_id,mal_id",
+        onConflict: "user_id,anilist_id",
       });
 
       if (dbError) throw dbError;
@@ -142,44 +142,44 @@ export default function ImportWatchlistModal({ isOpen, onClose, user }) {
       onClick={!isLoading ? onClose : undefined}
     >
       <div
-        className="bg-gradient-to-b from-[#160404] via-[#0d0202] to-black border border-red-900/50 p-6 rounded-3xl w-full max-w-md relative shadow-[0_20px_60px_rgba(0,0,0,0.9)] my-auto"
+        className="glass-card rounded-3xl p-6 md:p-8 w-full max-w-md relative shadow-[0_30px_60px_rgba(0,0,0,0.9)] my-auto animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
           disabled={isLoading}
-          className="absolute top-4 right-4 text-white hover:bg-red-600 transition-colors p-2 bg-red-950/80 border border-red-500/40 rounded-full cursor-pointer active:scale-95 shadow-md disabled:opacity-50"
+          className="absolute top-4 right-4 bg-red-950/80 hover:bg-red-600 border border-red-500/40 text-white w-8 h-8 rounded-full flex items-center justify-center transition-all z-20 shadow-[0_0_15px_rgba(220,38,38,0.3)] cursor-pointer active:scale-95 disabled:opacity-50"
           aria-label="Tutup"
         >
           <FaTimes size={14} />
         </button>
 
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-3 bg-blue-600/20 border border-blue-500/30 rounded-2xl text-blue-400">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="p-3 bg-blue-900/40 border border-blue-500/40 rounded-2xl text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
             <FaCloudDownloadAlt size={22} />
           </div>
           <div>
-            <h3 className="text-xl font-black text-white">Impor dari AniList</h3>
-            <p className="text-xs text-gray-400 font-medium">
-              Sinkronisasi koleksi animemu ke RAIHANEX
+            <h3 className="text-xl font-black text-white drop-shadow-md">Impor dari AniList</h3>
+            <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mt-1">
+              Sinkronisasi Koleksi
             </p>
           </div>
         </div>
 
-        <p className="text-xs text-gray-300 my-4 bg-white/5 p-3 rounded-xl border border-white/5 leading-relaxed">
+        <p className="text-[11px] text-gray-300 mb-6 bg-black/40 p-4 rounded-xl border border-white/5 leading-relaxed font-medium">
           Masukkan username publik akun AniList. Seluruh daftar status (
-          <em>Watching</em>, <em>Completed</em>, <em>Plan to Watch</em>) beserta progres episode dan ratingmu akan disinkronkan secara otomatis.
+          <em className="text-red-400 font-bold">Watching</em>, <em className="text-red-400 font-bold">Completed</em>, <em className="text-red-400 font-bold">Plan to Watch</em>) beserta progres episode dan ratingmu akan disinkronkan.
         </p>
 
-        <form onSubmit={handleImport} className="flex flex-col gap-4">
+        <form onSubmit={handleImport} className="flex flex-col gap-5">
           <div>
-            <label className="text-[11px] font-bold text-gray-400 mb-1 block uppercase tracking-wider">
+            <label className="text-[10px] font-black text-gray-400 mb-2 block uppercase tracking-widest pl-1">
               Username AniList
             </label>
             <input
               type="text"
               placeholder="Contoh: OtakuMaster99"
-              className="w-full bg-black/60 border border-red-900/40 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 font-medium"
+              className="input-field w-full"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               disabled={isLoading}
@@ -190,11 +190,11 @@ export default function ImportWatchlistModal({ isOpen, onClose, user }) {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-red-600/30 flex justify-center items-center gap-2 text-sm cursor-pointer active:scale-95"
+            className="btn-primary w-full py-4 text-sm mt-2 flex justify-center items-center gap-2"
           >
             {isLoading ? (
               <>
-                <FaSpinner className="animate-spin" /> Sedang Mengimpor Data...
+                <FaSpinner className="animate-spin" /> Sedang Mengimpor...
               </>
             ) : (
               "Mulai Sinkronisasi Data"

@@ -28,7 +28,7 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
   useEffect(() => {
     let isMounted = true;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500); // 2.5s safety timeout
+    const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s safety timeout
 
     async function fetchThemes() {
       if (!idMal) {
@@ -79,7 +79,7 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
             setEndings(finalEds);
           }
         } else {
-          // Jikan API sedang timeout/504 -> Gunakan fallback cerdas
+          // Jikan API sedang timeout/504 -> Gunakan fallback
           const fallbackOps = [`Official Opening Theme - ${animeTitle || "Anime"}`];
           const fallbackEds = [`Official Ending Theme - ${animeTitle || "Anime"}`];
           themeCache.set(idMal, { openings: fallbackOps, endings: fallbackEds });
@@ -90,7 +90,7 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
           }
         }
       } catch {
-        // Silent fallback jika network timeout / offline
+        // Fallback jika network timeout / offline
         const fallbackOps = [`Official Opening Theme - ${animeTitle || "Anime"}`];
         const fallbackEds = [`Official Ending Theme - ${animeTitle || "Anime"}`];
         themeCache.set(idMal, { openings: fallbackOps, endings: fallbackEds });
@@ -190,17 +190,17 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
   const currentList = activeTab === "op" ? openings : endings;
 
   return (
-    <div className="mt-12 bg-gradient-to-br from-[#120303]/90 via-[#0a0202]/90 to-black/90 backdrop-blur-2xl border border-red-900/40 rounded-3xl p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+    <div className="mt-12 glass-card rounded-3xl p-6 sm:p-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] relative overflow-hidden">
       {/* Background Vinyl Glowing Effect */}
       <div className="absolute -right-16 -bottom-16 w-64 h-64 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-red-900/30 pb-6 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="bg-red-900/30 p-3.5 rounded-2xl border border-red-500/30 shadow-inner flex items-center justify-center text-red-500">
+        <div className="flex items-center gap-4">
+          <div className="bg-red-950/80 p-3.5 rounded-2xl border border-red-500/30 shadow-[0_0_15px_rgba(220,38,38,0.3)] flex items-center justify-center text-red-500">
             <FaMusic className="text-2xl animate-pulse" />
           </div>
           <div>
-            <h3 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+            <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2 drop-shadow-md">
               Soundtrack & Lagu Tema
             </h3>
             <p className="text-xs sm:text-sm text-gray-400 font-medium">
@@ -210,39 +210,39 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
         </div>
 
         {/* Tab Switcher OP / ED */}
-        <div className="flex bg-black/60 p-1.5 rounded-2xl border border-red-900/40 self-start sm:self-auto">
+        <div className="flex bg-[#0a0202]/80 p-1.5 rounded-2xl border border-red-900/40 self-start sm:self-auto shadow-inner">
           <button
             onClick={() => setActiveTab("op")}
-            className={`px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 active:scale-95 ${
               activeTab === "op"
-                ? "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.6)]"
-                : "text-gray-400 hover:text-white"
+                ? "bg-gradient-to-r from-red-700 to-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.6)]"
+                : "text-gray-400 hover:text-white hover:bg-white/5"
             }`}
           >
-            <FaCompactDisc className={activeTab === "op" ? "animate-spin" : ""} />
+            <FaCompactDisc className={activeTab === "op" ? "animate-spin-slow" : ""} />
             Opening ({openings.length})
           </button>
           <button
             onClick={() => setActiveTab("ed")}
-            className={`px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 active:scale-95 ${
               activeTab === "ed"
-                ? "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.6)]"
-                : "text-gray-400 hover:text-white"
+                ? "bg-gradient-to-r from-red-700 to-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.6)]"
+                : "text-gray-400 hover:text-white hover:bg-white/5"
             }`}
           >
-            <FaCompactDisc className={activeTab === "ed" ? "animate-spin" : ""} />
+            <FaCompactDisc className={activeTab === "ed" ? "animate-spin-slow" : ""} />
             Ending ({endings.length})
           </button>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-12 gap-3 text-gray-400">
+        <div className="flex items-center justify-center py-12 gap-3 text-red-400">
           <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-sm font-bold">Memuat daftar lagu...</span>
+          <span className="text-sm font-bold uppercase tracking-widest animate-pulse">Memuat daftar lagu...</span>
         </div>
       ) : currentList.length === 0 ? (
-        <div className="text-center py-10 text-gray-500 text-sm italic bg-black/30 rounded-2xl border border-red-900/20">
+        <div className="text-center py-10 text-gray-400 text-sm font-bold bg-[#0a0202]/60 rounded-2xl border border-red-900/20 shadow-inner">
           Tidak ada data lagu {activeTab === "op" ? "Opening" : "Ending"} yang tersedia.
         </div>
       ) : (
@@ -254,14 +254,14 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
             return (
               <div
                 key={idx}
-                className="bg-black/50 hover:bg-red-950/30 border border-red-900/30 hover:border-red-500/50 rounded-2xl p-4 transition-all duration-300 flex items-center justify-between gap-3 group shadow-md"
+                className="bg-[#0a0202]/80 hover:bg-[#1a0505]/90 border border-red-900/30 hover:border-red-500/50 rounded-2xl p-4 transition-all duration-300 flex items-center justify-between gap-3 group shadow-[0_4px_12px_rgba(0,0,0,0.5)] hover:shadow-[0_4px_15px_rgba(220,38,38,0.2)]"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-red-950/60 border border-red-800/40 flex items-center justify-center flex-shrink-0 text-red-400 group-hover:scale-105 group-hover:bg-red-600 group-hover:text-white transition-all shadow-inner font-black text-xs">
+                  <div className="w-9 h-9 rounded-xl bg-red-950/60 border border-red-800/40 flex items-center justify-center flex-shrink-0 text-red-400 group-hover:scale-105 group-hover:bg-gradient-to-br from-red-600 to-red-800 group-hover:text-white transition-all shadow-[0_0_10px_rgba(220,38,38,0.2)] font-black text-xs">
                     {idx + 1}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-white text-xs sm:text-sm font-bold truncate group-hover:text-red-300 transition-colors">
+                    <p className="text-gray-200 text-xs sm:text-sm font-bold truncate group-hover:text-white transition-colors">
                       {cleanTitle}
                     </p>
                     <span className="text-[10px] text-gray-400 uppercase tracking-widest font-black">
@@ -279,7 +279,7 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
                         query: `${animeTitle || "Anime"} ${cleanTitle}`,
                       })
                     }
-                    className="p-2.5 rounded-xl bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 transition-all cursor-pointer shadow-sm hover:shadow-[0_0_12px_rgba(239,68,68,0.6)]"
+                    className="p-2.5 rounded-xl bg-red-950/60 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 transition-all cursor-pointer shadow-[0_0_10px_rgba(220,38,38,0.2)] active:scale-95"
                     title="Dengarkan Lagu"
                   >
                     <FaPlay size={11} />
@@ -291,10 +291,10 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
                       handleToggleFavorite(rawSong, activeTab === "op" ? "OP" : "ED")
                     }
                     disabled={isProcessingFav}
-                    className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer active:scale-95 ${
                       isFav
-                        ? "bg-pink-600 text-white border-pink-500 shadow-[0_0_12px_rgba(236,72,153,0.5)]"
-                        : "bg-black/60 text-gray-400 hover:text-pink-400 hover:border-pink-500/40 border-red-900/30"
+                        ? "bg-pink-600 text-white border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.5)]"
+                        : "bg-[#0a0202] text-gray-400 hover:text-pink-400 hover:border-pink-500/40 border-red-900/30"
                     }`}
                     title={isFav ? "Hapus dari Lagu Favorit" : "Simpan Lagu Favorit"}
                   >
@@ -310,36 +310,39 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
       {/* MODAL PEMUTAR YOUTUBE THEME SONG */}
       {selectedSong && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in"
-          onClick={() => setSelectedSong(null)}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in"
         >
+          <div 
+            className="absolute inset-0 bg-black/85 backdrop-blur-md"
+            onClick={() => setSelectedSong(null)}
+          ></div>
           <div
-            className="bg-[#110303] border border-red-900/60 rounded-3xl w-full max-w-2xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.9)] relative"
+            className="relative glass-card rounded-3xl w-full max-w-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.9)] animate-scale-up"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Modal */}
-            <div className="p-5 border-b border-red-900/40 flex items-center justify-between bg-gradient-to-r from-red-950/40 to-black/60">
+            <div className="p-5 border-b border-red-900/40 flex items-center justify-between bg-black/40 backdrop-blur-sm">
               <div className="flex items-center gap-3 min-w-0 pr-4">
                 <FaMusic className="text-red-500 flex-shrink-0" />
-                <h4 className="text-white font-black text-sm sm:text-base truncate">
+                <h4 className="text-white font-black text-sm sm:text-base truncate drop-shadow-md">
                   {selectedSong.title}
                 </h4>
               </div>
               <button
                 onClick={() => setSelectedSong(null)}
-                className="text-gray-400 hover:text-white p-2 rounded-full bg-white/5 hover:bg-red-600 transition-colors cursor-pointer"
+                className="text-gray-400 hover:text-white p-2.5 rounded-full bg-white/5 hover:bg-red-600 transition-colors cursor-pointer active:scale-95"
               >
                 <FaTimes size={14} />
               </button>
             </div>
 
             {/* Konten Pemutar / Link YouTube */}
-            <div className="p-6 flex flex-col items-center text-center">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-red-700 to-red-900 flex items-center justify-center text-white mb-5 shadow-[0_0_30px_rgba(220,38,38,0.5)] animate-spin-slow">
-                <FaCompactDisc size={40} />
+            <div className="p-8 flex flex-col items-center text-center bg-gradient-to-b from-transparent to-black/40">
+              <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-red-600 to-red-800 flex items-center justify-center text-white mb-6 shadow-[0_0_30px_rgba(220,38,38,0.5)] animate-spin-slow">
+                <FaCompactDisc size={48} className="drop-shadow-lg" />
               </div>
-              <h3 className="text-xl font-black text-white mb-1">{selectedSong.title}</h3>
-              <p className="text-xs text-gray-400 max-w-md mb-6">
+              <h3 className="text-xl sm:text-2xl font-black text-white mb-2 drop-shadow-md">{selectedSong.title}</h3>
+              <p className="text-xs text-gray-400 max-w-md mb-8 font-medium">
                 Lagu tema resmi untuk anime <span className="text-red-400 font-bold">{animeTitle}</span>.
               </p>
 
@@ -350,10 +353,10 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-5 rounded-2xl text-sm transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] flex items-center justify-center gap-2"
+                  className="flex-1 btn-primary py-4 px-5 text-sm flex items-center justify-center gap-2"
                 >
                   <FaPlay size={12} /> Buka & Putar di YouTube
-                  <FaExternalLinkAlt size={11} className="opacity-70" />
+                  <FaExternalLinkAlt size={11} className="opacity-70 ml-1" />
                 </a>
               </div>
             </div>

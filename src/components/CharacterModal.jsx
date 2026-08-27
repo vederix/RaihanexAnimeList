@@ -29,54 +29,54 @@ const CharacterModal = ({ characterEdge, onClose }) => {
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       <div 
-        className="absolute inset-0 bg-black/85 backdrop-blur-md"
+        className="absolute inset-0 bg-black/85 backdrop-blur-md animate-fade-in"
         onClick={onClose}
       ></div>
       
-      <div className="relative w-full max-w-2xl bg-[#0a0202] border border-red-900/50 rounded-3xl shadow-[0_20px_60px_rgba(220,38,38,0.2)] overflow-hidden flex flex-col md:flex-row animate-fade-in my-auto">
+      <div className="relative w-full max-w-2xl glass-card rounded-3xl overflow-hidden flex flex-col md:flex-row animate-scale-up my-auto shadow-[0_30px_60px_rgba(0,0,0,0.9)]">
         {/* Tombol Tutup */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 bg-red-950/80 hover:bg-red-600 border border-red-500/40 text-white w-9 h-9 rounded-full flex items-center justify-center transition-all z-20 shadow-lg cursor-pointer active:scale-95"
+          className="absolute top-4 right-4 bg-red-950/80 hover:bg-red-600 border border-red-500/40 text-white w-9 h-9 rounded-full flex items-center justify-center transition-all z-20 shadow-[0_0_15px_rgba(220,38,38,0.3)] cursor-pointer active:scale-95"
           aria-label="Tutup"
         >
           <FaTimes size={14} />
         </button>
 
         {/* Sisi Karakter (Kiri) */}
-        <div className="flex-1 p-6 md:p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-red-900/30 bg-gradient-to-br from-[#1a0505] to-black">
+        <div className="flex-1 p-6 md:p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-red-900/30 bg-gradient-to-br from-black/40 to-transparent">
           <div className="relative mb-4">
-            <div className="absolute inset-0 bg-red-600 blur-xl opacity-20 rounded-full"></div>
+            <div className="absolute inset-0 bg-red-600 blur-xl opacity-20 rounded-full animate-pulse"></div>
             <img 
               src={char.image?.large} 
               alt={char.name?.full} 
-              className="w-32 h-40 md:w-40 md:h-52 object-cover rounded-2xl relative z-10 border-2 border-red-900/50 shadow-lg"
+              className="w-32 h-40 md:w-40 md:h-52 object-cover rounded-2xl relative z-10 border-2 border-red-900/50 shadow-[0_0_20px_rgba(220,38,38,0.3)]"
             />
           </div>
-          <h3 className="text-xl md:text-2xl font-black text-white text-center mb-1">
+          <h3 className="text-xl md:text-2xl font-black text-white text-center mb-1 drop-shadow-md">
             {char.name?.full}
           </h3>
-          <span className="text-xs font-bold px-3 py-1 bg-red-900/30 text-red-400 rounded-full border border-red-900/50 flex items-center gap-1.5 uppercase tracking-wider">
+          <span className="text-[10px] font-black px-3 py-1 bg-red-950/50 text-red-400 rounded-full border border-red-900/50 flex items-center gap-1.5 uppercase tracking-widest shadow-inner">
             <FaUser /> {role}
           </span>
         </div>
 
         {/* Sisi Seiyuu (Kanan) */}
-        <div className="flex-1 p-6 md:p-8 flex flex-col items-center justify-center bg-gradient-to-bl from-[#1a0505] to-black">
+        <div className="flex-1 p-6 md:p-8 flex flex-col items-center justify-center bg-gradient-to-bl from-black/40 to-transparent">
           {va ? (
             <>
               <div className="relative mb-4">
-                <div className="absolute inset-0 bg-blue-600 blur-xl opacity-20 rounded-full"></div>
+                <div className="absolute inset-0 bg-blue-600 blur-xl opacity-20 rounded-full animate-pulse"></div>
                 <img 
                   src={va.image?.large} 
                   alt={va.name?.full} 
-                  className="w-24 h-24 md:w-32 md:h-32 object-cover rounded-full relative z-10 border-2 border-blue-900/50 shadow-lg"
+                  className="w-24 h-24 md:w-32 md:h-32 object-cover rounded-full relative z-10 border-2 border-blue-900/50 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
                 />
               </div>
-              <h3 className="text-lg md:text-xl font-bold text-gray-200 text-center mb-1">
+              <h3 className="text-lg md:text-xl font-bold text-gray-200 text-center mb-1 drop-shadow-md">
                 {va.name?.full}
               </h3>
-              <span className="text-xs font-bold px-3 py-1 bg-blue-900/30 text-blue-400 rounded-full border border-blue-900/50 flex items-center gap-1.5 uppercase tracking-wider">
+              <span className="text-[10px] font-black px-3 py-1 bg-blue-950/50 text-blue-400 rounded-full border border-blue-900/50 flex items-center gap-1.5 uppercase tracking-widest shadow-inner">
                 <FaMicrophoneAlt /> Voice Actor (JP)
               </span>
             </>

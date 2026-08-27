@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { FaSearch, FaTimes, FaStar, FaHeart, FaFire, FaChartBar, FaFilm } from "react-icons/fa";
 import { fetchAniList } from "../utils/anilist";
 import { Link } from "react-router-dom";
+import toast from "react-hot-toast";
 
 const SEARCH_QUERY = `
   query ($search: String) {
@@ -43,17 +44,22 @@ export default function Compare() {
   const fetchAnimeDetails = useCallback(async (id, side) => {
     try {
       const data = await fetchAniList(ANIME_DETAIL_QUERY, { id });
-      if (side === "left") setLeftAnime(data.Media);
-      else setRightAnime(data.Media);
-    } catch {
-      // Fallback
+      if (data?.Media) {
+        if (side === "left") setLeftAnime(data.Media);
+        else setRightAnime(data.Media);
+      } else {
+        toast.error("Anime tidak ditemukan.");
+      }
+    } catch (err) {
+      console.error("Gagal memuat detail anime untuk perbandingan:", err);
+      toast.error("Gagal memuat data anime. Coba lagi.");
     }
   }, []);
 
   return (
     <div className="pt-24 min-h-screen px-4 pb-12 max-w-7xl mx-auto">
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-300">
+        <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-300 drop-shadow-md">
           ANIME HEAD-TO-HEAD
         </h1>
         <p className="text-gray-400 text-sm mt-2 font-medium">
@@ -63,7 +69,7 @@ export default function Compare() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 relative">
         {/* Kolom Kiri */}
-        <div className="bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex flex-col h-full">
+        <div className="glass-card p-6 flex flex-col h-full rounded-2xl animate-scale-up border-t border-red-900/50">
           {!leftAnime ? (
             <SearchAnimeBox side="left" onSelect={(id) => fetchAnimeDetails(id, "left")} />
           ) : (
@@ -72,7 +78,7 @@ export default function Compare() {
         </div>
 
         {/* Kolom Kanan */}
-        <div className="bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex flex-col h-full">
+        <div className="glass-card p-6 flex flex-col h-full rounded-2xl animate-scale-up border-t border-red-900/50">
           {!rightAnime ? (
             <SearchAnimeBox side="right" onSelect={(id) => fetchAnimeDetails(id, "right")} />
           ) : (
@@ -131,7 +137,7 @@ function SearchAnimeBox({ side, onSelect }) {
           <input
             type="text"
             placeholder={`Cari anime ke-${side === "left" ? "1" : "2"}...`}
-            className="w-full bg-white/5 border border-white/20 rounded-xl px-12 py-4 text-white placeholder-gray-400 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/30 transition-all font-medium text-lg"
+            className="w-full input-field px-12 py-4 font-medium text-lg"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -147,7 +153,7 @@ function SearchAnimeBox({ side, onSelect }) {
               <button
                 key={anime.id}
                 onClick={() => onSelect(anime.id)}
-                className="w-full flex items-center gap-3 p-3 hover:bg-white/10 transition-colors text-left border-b border-white/5 last:border-0"
+                className="w-full flex items-center gap-3 p-3 hover:bg-white/5 transition-colors text-left border-b border-white/5 last:border-0"
               >
                 <img src={anime.coverImage.medium} alt={anime.title.romaji} className="w-12 h-16 object-cover rounded-md" />
                 <div>
@@ -194,13 +200,13 @@ function AnimeCard({ anime, opponent, onRemove }) {
 
   return (
     <div className="relative flex flex-col items-center">
-      <button onClick={onRemove} className="absolute top-0 right-0 bg-white/10 hover:bg-red-500 text-white p-2 rounded-full transition-colors z-10">
+      <button onClick={onRemove} className="absolute top-0 right-0 bg-red-950/80 hover:bg-red-600 text-red-200 hover:text-white p-2 rounded-xl transition-colors z-10 border border-red-500/30 shadow-lg">
         <FaTimes />
       </button>
 
-      <img src={anime.coverImage.extraLarge} alt={anime.title.romaji} className="w-48 h-64 object-cover rounded-xl shadow-lg mb-4 border border-white/10" />
+      <img src={anime.coverImage.extraLarge} alt={anime.title.romaji} className="w-48 h-64 object-cover rounded-xl shadow-[0_20px_40px_rgba(0,0,0,0.6)] mb-4 border border-white/10" />
       
-      <Link to={`/anime/${anime.id}`} className="text-xl font-black text-white hover:text-red-500 transition-colors text-center line-clamp-2 mb-1">
+      <Link to={`/anime/${anime.id}`} className="text-xl font-black text-white hover:text-red-400 transition-colors text-center line-clamp-2 mb-1 drop-shadow-md">
         {anime.title.romaji}
       </Link>
       

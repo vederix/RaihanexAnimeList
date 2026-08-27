@@ -37,7 +37,6 @@ export default function CollectionDetail() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchCollectionDetail = useCallback(async () => {
-    setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from("collections")
@@ -49,8 +48,21 @@ export default function CollectionDetail() {
       setCollection(data);
 
       if (data.anime_ids && data.anime_ids.length > 0) {
-        const aniData = await fetchAniList(COLLECTION_ANIME_QUERY, { ids: data.anime_ids });
-        setAnimes(aniData?.Page?.media || []);
+        // Chunking IDs into batches of 50 to prevent AniList perPage truncation
+        const CHUNK_SIZE = 50;
+        const chunks = [];
+        for (let i = 0; i < data.anime_ids.length; i += CHUNK_SIZE) {
+          chunks.push(data.anime_ids.slice(i, i + CHUNK_SIZE));
+        }
+
+        const results = await Promise.all(
+          chunks.map((chunkIds) =>
+            fetchAniList(COLLECTION_ANIME_QUERY, { ids: chunkIds })
+          )
+        );
+
+        const allMedia = results.flatMap((res) => res?.Page?.media || []);
+        setAnimes(allMedia);
       } else {
         setAnimes([]);
       }
@@ -131,9 +143,9 @@ export default function CollectionDetail() {
         <FaArrowLeft /> Kembali ke Daftar Koleksi
       </Link>
 
-      <div className="bg-black/30 border border-white/10 rounded-2xl p-6 lg:p-10 mb-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
-          {collection.is_public ? <FaGlobe size={100} /> : <FaLock size={100} />}
+      <div className="glass-card p-6 lg:p-10 mb-8 relative overflow-hidden rounded-3xl border-t border-red-900/50 shadow-[0_20px_40px_rgba(0,0,0,0.5)] animate-scale-up">
+        <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none text-red-500">
+          {collection.is_public ? <FaGlobe size={150} /> : <FaLock size={150} />}
         </div>
         
         <div className="relative z-10 flex flex-col md:flex-row md:items-start justify-between gap-6">
@@ -152,7 +164,7 @@ export default function CollectionDetail() {
             <button 
               onClick={handleDelete}
               disabled={isDeleting}
-              className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/50 px-4 py-2 rounded-xl transition-all flex items-center gap-2 font-bold whitespace-nowrap"
+              className="bg-red-950/80 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 px-5 py-2.5 rounded-xl transition-all flex items-center gap-2 font-bold whitespace-nowrap shadow-[0_10px_20px_rgba(0,0,0,0.3)] hover:-translate-y-1"
             >
               <FaTrash /> Hapus Koleksi
             </button>
@@ -165,8 +177,8 @@ export default function CollectionDetail() {
       </div>
 
       {animes.length === 0 ? (
-        <div className="text-center py-20 bg-white/5 rounded-2xl border border-white/10 border-dashed">
-          <p className="text-gray-400">Koleksi ini masih kosong.</p>
+        <div className="text-center py-20 glass-card rounded-3xl border-dashed border-2 border-red-900/30">
+          <p className="text-gray-400 text-lg">Koleksi ini masih kosong.</p>
           {isOwner && <p className="text-sm text-gray-500 mt-2">Buka halaman detail anime dan klik "Tambahkan ke Koleksi".</p>}
         </div>
       ) : (
@@ -177,7 +189,7 @@ export default function CollectionDetail() {
               {isOwner && (
                 <button 
                   onClick={(e) => { e.preventDefault(); handleRemoveAnime(anime.id); }}
-                  className="absolute top-2 right-2 bg-black/80 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 hover:scale-110 z-20"
+                  className="absolute top-2 right-2 bg-red-950/90 text-white p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all hover:bg-red-600 hover:scale-110 z-20 border border-red-500/30 shadow-lg"
                   title="Hapus dari koleksi"
                 >
                   <FaTrash size={12} />

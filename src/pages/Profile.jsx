@@ -48,68 +48,39 @@ const Profile = () => {
       }
 
       try {
-        // 1. Ambil Jumlah Watchlist
-        const { count: watchlistCount, error: watchlistError } = await supabase
-          .from("watchlist")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id);
-          
-        if (watchlistError) console.error("Error watchlist count:", watchlistError);
-
-        // 2. Ambil Jumlah Ulasan
-        const { count: reviewCount, error: reviewError } = await supabase
-          .from("reviews")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id);
-
-        if (reviewError) console.error("Error review count:", reviewError);
-
-        // 3. Ambil 4 Watchlist Terakhir
-        const { data: recentWatchlist, error: recentError } = await supabase
-          .from("watchlist")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(4);
-          
-        if (recentError) console.error("Error recent watchlist:", recentError);
-        
-        // 4. Badges System
-        let finalBadges = [];
-        try {
-          const { data: allBadges, error: badgeError } = await supabase.from("badges").select("*");
-          if (badgeError) throw badgeError;
-          
-          const { data: myBadges, error: myBadgeError } = await supabase.from("user_badges").select("badge_id").eq("user_id", user.id);
-          if (myBadgeError) throw myBadgeError;
-          
-          const myBadgeIds = myBadges?.map(b => b.badge_id) || [];
-          const toAward = [];
-          
-          if (allBadges) {
-            for (const b of allBadges) {
-              if (myBadgeIds.includes(b.id)) continue;
-              if (b.requirement_type === "reviews" && (reviewCount || 0) >= b.requirement_value) toAward.push({ user_id: user.id, badge_id: b.id });
-              if (b.requirement_type === "watchlist" && (watchlistCount || 0) >= b.requirement_value) toAward.push({ user_id: user.id, badge_id: b.id });
-            }
-          }
-          
-          if (toAward.length > 0) {
-            const { error: insertError } = await supabase.from("user_badges").insert(toAward);
-            if (insertError) throw insertError;
-            toast.success(`Selamat! Kamu mendapatkan ${toAward.length} lencana baru!`, { icon: '🏆' });
-          }
-          
-          const { data: earnedData, error: earnedError } = await supabase
+        // Parallel Fetch untuk mempercepat load time dasbor profil
+        const [
+          { count: watchlistCount, error: watchlistError },
+          { count: reviewCount, error: reviewError },
+          { data: recentWatchlist, error: recentError },
+          { data: earnedData, error: badgesError },
+        ] = await Promise.all([
+          supabase
+            .from("watchlist")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id),
+          supabase
+            .from("reviews")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id),
+          supabase
+            .from("watchlist")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(4),
+          supabase
             .from("user_badges")
             .select("*, badges(*)")
-            .eq("user_id", user.id);
-          if (earnedError) throw earnedError;
-            
-          finalBadges = earnedData || [];
-        } catch (err) {
-          console.error("Gagal memuat badges:", err);
-        }
+            .eq("user_id", user.id),
+        ]);
+
+        if (watchlistError) console.error("Error watchlist count:", watchlistError);
+        if (reviewError) console.error("Error review count:", reviewError);
+        if (recentError) console.error("Error recent watchlist:", recentError);
+        if (badgesError) console.error("Error badges:", badgesError);
+
+        const finalBadges = earnedData || [];
 
         if (!isCancelled) {
           setStats({
@@ -237,7 +208,7 @@ const Profile = () => {
         </div>
 
         {/* Profile Card Main */}
-        <div className="bg-[#1a0505]/80 backdrop-blur-3xl border border-red-900/40 rounded-3xl p-6 md:p-10 shadow-[0_20px_50px_rgba(153,27,27,0.2)] relative overflow-hidden mb-8">
+        <div className="glass-card rounded-3xl p-6 md:p-10 shadow-[0_30px_60px_rgba(0,0,0,0.8)] relative overflow-hidden mb-8 animate-scale-up border-t border-red-900/50">
           <div className="absolute -top-32 -right-32 w-80 h-80 bg-red-600/10 rounded-full blur-[100px] pointer-events-none"></div>
 
           <div className="flex flex-col md:flex-row gap-8 items-center md:items-start relative z-10">
@@ -279,7 +250,7 @@ const Profile = () => {
               </div>
 
               {/* Progress Bar Gamifikasi */}
-              <div className="bg-black/40 border border-red-900/30 p-4 rounded-2xl mb-6">
+              <div className="bg-[#0a0202] border border-red-900/30 p-4 rounded-2xl mb-6 shadow-inner">
                 <div className="flex justify-between text-xs font-bold mb-2">
                   <span className="text-gray-400">
                     Progres Level Selanjutnya
@@ -323,7 +294,7 @@ const Profile = () => {
               <div className="flex flex-wrap gap-3 justify-center md:justify-start">
                 <button
                   onClick={() => setIsEditModalOpen(true)}
-                  className="bg-black/50 hover:bg-red-900/30 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all border border-red-900/50 flex items-center gap-2 cursor-pointer hover:border-red-500"
+                  className="btn-secondary px-5 py-2.5 flex items-center gap-2"
                 >
                   <FaPen size={12} /> Edit Profil
                 </button>
@@ -335,7 +306,7 @@ const Profile = () => {
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] border border-red-500/50 flex items-center gap-2 cursor-pointer"
+                  className="btn-primary px-5 py-2.5 flex items-center gap-2 shadow-[0_0_15px_rgba(220,38,38,0.3)]"
                 >
                   <FaSignOutAlt /> Keluar Akun
                 </button>
@@ -347,7 +318,7 @@ const Profile = () => {
         {/* --- MODAL EDIT PROFIL --- */}
         {isEditModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-[#1a0505] border border-red-900/50 p-6 md:p-8 rounded-3xl w-full max-w-md shadow-2xl relative">
+            <div className="glass-card p-6 md:p-8 rounded-3xl w-full max-w-md shadow-2xl relative border-t border-red-500/30 animate-scale-up">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black text-white flex items-center gap-2">
                   <FaUser className="text-red-500" /> Ubah Nama Tampilan
@@ -362,7 +333,7 @@ const Profile = () => {
 
               <form onSubmit={handleSaveProfile} className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">
+                  <label className="block text-[11px] font-black text-red-300 uppercase mb-2 tracking-widest">
                     Username / Display Name
                   </label>
                   <input
@@ -370,7 +341,7 @@ const Profile = () => {
                     required
                     value={newDisplayName}
                     onChange={(e) => setNewDisplayName(e.target.value)}
-                    className="w-full bg-black/50 border border-red-900/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 text-sm"
+                    className="w-full input-field px-4 py-3 text-sm"
                     placeholder="Nama baru kamu..."
                   />
                 </div>
@@ -379,14 +350,14 @@ const Profile = () => {
                   <button
                     type="button"
                     onClick={() => setIsEditModalOpen(false)}
-                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-400 hover:text-white bg-slate-800 cursor-pointer"
+                    className="btn-secondary px-5 py-2.5 text-sm"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
                     disabled={isUpdating}
-                    className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 flex items-center gap-2 shadow-lg cursor-pointer"
+                    className="btn-primary px-6 py-2.5 text-sm flex items-center gap-2 shadow-lg"
                   >
                     {isUpdating ? "Menyimpan..." : <><FaCheck /> Simpan</>}
                   </button>
@@ -416,7 +387,7 @@ const Profile = () => {
         {activeTab === "statistik" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 animate-fade-in">
             {/* Box 1: Watchlist */}
-            <div className="bg-[#1a0505]/40 backdrop-blur-md border border-red-900/30 p-6 rounded-2xl flex items-center gap-5 hover:border-red-500/50 transition-all shadow-lg relative overflow-hidden group">
+            <div className="glass-card glass-card-hover p-6 rounded-2xl flex items-center gap-5 transition-all shadow-[0_20px_40px_rgba(0,0,0,0.4)] relative overflow-hidden group">
               <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <FaPlayCircle size={100} className="text-red-500" />
               </div>
@@ -434,7 +405,7 @@ const Profile = () => {
             </div>
 
             {/* Box 2: Ulasan */}
-            <div className="bg-[#1a0505]/40 backdrop-blur-md border border-red-900/30 p-6 rounded-2xl flex items-center gap-5 hover:border-blue-500/50 transition-all shadow-lg relative overflow-hidden group">
+            <div className="glass-card glass-card-hover p-6 rounded-2xl flex items-center gap-5 transition-all shadow-[0_20px_40px_rgba(0,0,0,0.4)] relative overflow-hidden group">
               <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <FaComments size={100} className="text-blue-500" />
               </div>
@@ -452,7 +423,7 @@ const Profile = () => {
             </div>
           </div>
         ) : (
-          <div className="bg-[#1a0505]/40 backdrop-blur-md border border-red-900/30 rounded-2xl p-6 animate-fade-in">
+          <div className="glass-card rounded-2xl p-6 animate-fade-in shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
             {recentActivity.length === 0 ? (
               <div className="text-center py-10 text-gray-500 font-medium">
                 Belum ada aktivitas. Mulai tambahkan anime ke Watchlist!
@@ -461,9 +432,9 @@ const Profile = () => {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {recentActivity.map((item) => (
                   <Link
-                    to={`/anime/${item.mal_id}`}
+                    to={`/anime/${item.anilist_id}`}
                     key={item.id}
-                    className="relative group rounded-xl overflow-hidden shadow-lg border border-red-900/30 block aspect-[3/4]"
+                    className="relative group rounded-xl overflow-hidden shadow-lg border border-red-900/30 block aspect-[3/4] hover:border-red-500 transition-colors"
                   >
                     <img
                       src={item.image_url}

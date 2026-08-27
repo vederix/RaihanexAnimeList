@@ -71,10 +71,10 @@ const SmartRecommendation = () => {
         // FASE 1: Data Selection (Ambil Watchlist dari Supabase)
         const { data: watchlist } = await supabase
           .from("watchlist")
-          .select("mal_id")
+          .select("anilist_id")
           .eq("user_id", user.id);
 
-        const watchedIds = watchlist?.map((item) => item.mal_id) || [];
+        const watchedIds = watchlist?.map((item) => item.anilist_id) || [];
 
         // Jika Watchlist masih kosong, tampilkan Trending
         if (watchedIds.length === 0) {
@@ -90,19 +90,15 @@ const SmartRecommendation = () => {
         const genreData = await fetchAniList(GENRE_EXTRACTION_QUERY, {
           idIn: watchedIds.slice(0, 50),
         });
-        const genreCounts = {};
-
-        genreData?.Page?.media?.forEach((anime) => {
-          anime.genres?.forEach((genre) => {
-            genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-          });
+        // Gunakan Web Worker untuk komputasi agar tidak memblokir UI Main Thread
+        const sortedGenres = await new Promise((resolve) => {
+          const worker = new Worker(new URL("../workers/recommendation.worker.js", import.meta.url), { type: "module" });
+          worker.onmessage = (e) => {
+            resolve(e.data.sortedGenres);
+            worker.terminate();
+          };
+          worker.postMessage({ watchedIds, genreData });
         });
-
-        // Urutkan genre dari yang paling banyak ditonton, ambil 2 teratas
-        const sortedGenres = Object.entries(genreCounts)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 2)
-          .map((entry) => entry[0]);
 
         if (sortedGenres.length === 0) {
           const trendingData = await fetchAniList(TRENDING_QUERY);
@@ -151,9 +147,9 @@ const SmartRecommendation = () => {
 
   if (isLoading) {
     return (
-      <div className="bg-[#1a0505]/40 backdrop-blur-md border border-red-900/30 rounded-3xl p-8 mt-8 animate-pulse flex flex-col items-center justify-center h-48">
-        <FaMagic className="text-red-500/50 text-4xl mb-4 animate-bounce" />
-        <span className="text-red-300/70 font-medium text-sm">
+      <div className="glass-card p-8 mt-8 animate-pulse flex flex-col items-center justify-center h-48 rounded-3xl">
+        <FaMagic className="text-red-500/80 text-4xl mb-4 animate-bounce drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]" />
+        <span className="text-red-400 font-black text-sm uppercase tracking-widest drop-shadow-md">
           AI sedang menganalisis pola tontonanmu...
         </span>
       </div>
@@ -163,16 +159,16 @@ const SmartRecommendation = () => {
   if (recommendations.length === 0) return null;
 
   return (
-    <div className="bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/40 rounded-3xl p-6 md:p-8 mt-8 shadow-[0_20px_50px_rgba(220,38,38,0.1)] relative overflow-hidden group">
+    <div className="mt-8 glass-card rounded-3xl p-6 md:p-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] relative overflow-hidden group animate-fade-in">
       {/* Efek Cahaya Latar */}
       <div className="absolute -top-24 -left-24 w-64 h-64 bg-red-600/10 rounded-full blur-[80px] pointer-events-none group-hover:bg-red-600/20 transition-all duration-700"></div>
 
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6 relative z-10 border-b border-red-900/30 pb-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 relative z-10 border-b border-red-900/30 pb-5">
         <div>
-          <h3 className="text-2xl md:text-3xl font-extrabold text-white flex items-center gap-3 tracking-tight">
-            <FaMagic className="text-red-500" /> Rekomendasi Pintar
+          <h3 className="text-2xl md:text-3xl font-black text-white flex items-center gap-3 tracking-tight drop-shadow-md">
+            <FaMagic className="text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" /> Rekomendasi Pintar
           </h3>
-          <p className="text-sm text-gray-400 mt-2">
+          <p className="text-xs sm:text-sm text-gray-400 mt-2 font-medium">
             Hasil ekstraksi pola data dari koleksi anime di RAIHANEX.
           </p>
         </div>
@@ -180,7 +176,7 @@ const SmartRecommendation = () => {
           {topGenres.map((genre, idx) => (
             <span
               key={idx}
-              className="bg-gradient-to-r from-red-900/60 to-red-800/60 border border-red-500/30 text-red-200 text-xs font-bold px-3 py-1.5 rounded-lg shadow-inner uppercase tracking-wider"
+              className="bg-red-950/80 border border-red-500/40 text-red-300 text-[10px] font-black px-3.5 py-1.5 rounded-xl shadow-[0_0_15px_rgba(220,38,38,0.2)] uppercase tracking-widest"
             >
               {genre}
             </span>
@@ -188,31 +184,33 @@ const SmartRecommendation = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 relative z-10">
         {recommendations.map((anime) => (
           <Link
             to={`/anime/${anime.id}`}
             key={anime.id}
-            className="relative rounded-2xl overflow-hidden border border-red-900/30 shadow-lg hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:border-red-500/60 transition-all duration-300 group/card block aspect-[3/4]"
+            className="glass-card glass-card-hover rounded-2xl overflow-hidden group/card block aspect-[3/4]"
           >
-            <img
-              src={anime.coverImage?.large}
-              alt={anime.title?.romaji || anime.title?.english || "Anime Cover"}
-              className="w-full h-full object-cover group-hover/card:scale-110 transition-transform duration-700"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent opacity-90 group-hover/card:opacity-100 transition-opacity"></div>
+            <div className="relative w-full h-full">
+              <img
+                src={anime.coverImage?.large}
+                alt={anime.title?.romaji || anime.title?.english || "Anime Cover"}
+                className="w-full h-full object-cover group-hover/card:scale-110 transition-transform duration-700"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0a0202] via-[#0a0202]/40 to-transparent opacity-90 group-hover/card:opacity-100 transition-opacity"></div>
 
-            <div className="absolute bottom-0 left-0 w-full p-4 flex flex-col justify-end translate-y-2 group-hover/card:translate-y-0 transition-transform">
-              <h4 className="text-white font-bold text-sm line-clamp-2 leading-snug group-hover/card:text-red-300 transition-colors">
-                {anime.title?.romaji || anime.title?.english}
-              </h4>
-              <div className="flex items-center gap-1.5 mt-2">
-                <FaStar className="text-yellow-400 text-[10px]" />
-                <span className="text-white text-xs font-bold">
-                  {anime.averageScore
-                    ? (anime.averageScore / 10).toFixed(1)
-                    : "N/A"}
-                </span>
+              <div className="absolute bottom-0 left-0 w-full p-4 flex flex-col justify-end translate-y-2 group-hover/card:translate-y-0 transition-transform">
+                <h4 className="text-white font-bold text-sm line-clamp-2 leading-snug group-hover/card:text-red-400 transition-colors drop-shadow-md">
+                  {anime.title?.romaji || anime.title?.english}
+                </h4>
+                <div className="flex items-center gap-1.5 mt-2 badge-status bg-black/80 border-yellow-500/50 w-fit">
+                  <FaStar className="text-yellow-400 text-[10px]" />
+                  <span className="text-white text-[10px] font-black mt-0.5">
+                    {anime.averageScore
+                      ? (anime.averageScore / 10).toFixed(1)
+                      : "N/A"}
+                  </span>
+                </div>
               </div>
             </div>
           </Link>

@@ -89,7 +89,7 @@ const Home = () => {
         if (user) {
           const { data: topAnime, error: topAnimeError } = await supabase
             .from("watchlist")
-            .select("mal_id")
+            .select("anilist_id")
             .eq("user_id", user.id)
             .gte("rating_pribadi", 8)
             .limit(1);
@@ -98,7 +98,7 @@ const Home = () => {
 
           if (topAnime && topAnime.length > 0 && !isCancelled) {
             const recomData = await fetchAniList(RECOM_QUERY, {
-              id: topAnime[0].mal_id,
+              id: topAnime[0].anilist_id,
             });
             const animeNodes =
               recomData?.Media?.recommendations?.edges
@@ -188,19 +188,19 @@ const Home = () => {
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto items-center">
             <Link
               to="/search"
-              className="w-full sm:w-auto bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(220,38,38,0.4)] hover:shadow-[0_0_40px_rgba(220,38,38,0.6)] transition-all flex items-center justify-center gap-3 hover:-translate-y-1 cursor-pointer"
+              className="w-full sm:w-auto btn-primary py-4 px-8 text-base shadow-[0_0_30px_rgba(220,38,38,0.4)] flex items-center justify-center gap-3"
             >
-              <FaCompass className="text-xl" /> Mulai Petualangan
+              <FaCompass className="text-xl animate-spin-slow" /> Mulai Petualangan
             </Link>
             <button
               onClick={() => setIsRandomizerOpen(true)}
-              className="w-full sm:w-auto bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 hover:-translate-y-1 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] border border-amber-400/40 cursor-pointer"
+              className="w-full sm:w-auto bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white px-8 py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] border border-amber-400/40 cursor-pointer active:scale-95 text-base hover:-translate-y-1"
             >
-              <FaDice className="text-xl animate-spin-slow text-yellow-200" /> Gacha Anime
+              <FaDice className="text-xl animate-spin-slow text-yellow-200 drop-shadow-md" /> Gacha Anime
             </button>
             <Link
               to="/schedule"
-              className="w-full sm:w-auto bg-[#1a0505]/60 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-gray-300 hover:text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 hover:-translate-y-1 shadow-lg cursor-pointer"
+              className="w-full sm:w-auto btn-secondary py-4 px-8 text-base flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,0,0,0.5)]"
             >
               <FaPlay className="text-red-500" /> Lihat Jadwal
             </Link>
@@ -212,7 +212,7 @@ const Home = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         {isLoading ? (
           <div className="flex flex-col gap-12 md:gap-16">
-            <section className="bg-[#0a0202]/60 backdrop-blur-xl border border-red-900/30 p-6 md:p-8 rounded-[2rem]">
+            <section className="glass-card p-6 md:p-8 rounded-[2rem]">
               <div className="h-8 bg-red-900/20 rounded-xl w-64 mb-6 animate-pulse"></div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
                 {[...Array(5)].map((_, i) => (
@@ -224,30 +224,32 @@ const Home = () => {
         ) : (
           <div className="flex flex-col gap-12 md:gap-16">
             {/* SECTION 1: JADWAL RILIS TERDEKAT */}
-            <section className="bg-[#0a0202]/60 backdrop-blur-xl border border-red-900/30 p-6 md:p-8 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
-              <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-red-900/30 pb-4">
+            <section className="glass-card p-6 md:p-8 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)] animate-fade-in relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-[80px] pointer-events-none group-hover:bg-red-600/20 transition-all duration-700"></div>
+              
+              <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-red-900/30 pb-4 relative z-10">
                 <div className="flex items-center gap-4">
                   <div className="bg-red-900/30 p-3 rounded-xl border border-red-500/20">
                     <FaCalendarAlt className="text-red-500 text-2xl drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
                   </div>
                   <div>
-                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
                       Jadwal Rilis Terdekat
                     </h2>
-                    <p className="text-sm text-gray-400 mt-1">
+                    <p className="text-sm text-gray-400 mt-1 font-medium">
                       Anime yang akan tayang dalam waktu dekat.
                     </p>
                   </div>
                 </div>
                 <Link
                   to="/schedule"
-                  className="text-xs sm:text-sm font-bold text-red-400 hover:text-white transition-colors bg-black/40 px-5 py-2.5 rounded-xl border border-red-900/50 hover:bg-red-900/40 w-max shadow-md cursor-pointer"
+                  className="text-xs sm:text-sm font-bold text-red-400 hover:text-white transition-colors bg-black/40 px-5 py-2.5 rounded-xl border border-red-900/50 hover:bg-red-900/40 w-max shadow-[0_0_15px_rgba(0,0,0,0.5)] cursor-pointer hover:shadow-[0_0_15px_rgba(220,38,38,0.3)] active:scale-95 flex items-center gap-2"
                 >
                   Kalender Lengkap &rarr;
                 </Link>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 relative z-10">
                 {airingAnime.map((schedule, index) => (
                   <div
                     key={`${schedule.media?.id || schedule.id}-${schedule.episode}-${index}`}
@@ -265,8 +267,8 @@ const Home = () => {
 
             {/* SECTION 2: SMART RECOMMENDATION */}
             {recommendedAnime.length > 0 && (
-              <section className="bg-gradient-to-br from-red-950/40 to-black/60 border border-red-800/40 p-6 md:p-8 rounded-[2rem] backdrop-blur-xl relative overflow-hidden shadow-[0_20px_50px_rgba(220,38,38,0.1)]">
-                <div className="absolute -left-32 top-1/2 -translate-y-1/2 w-96 h-96 bg-red-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+              <section className="glass-card p-6 md:p-8 rounded-[2rem] shadow-[0_20px_50px_rgba(220,38,38,0.1)] relative overflow-hidden animate-fade-in group">
+                <div className="absolute -left-32 top-1/2 -translate-y-1/2 w-96 h-96 bg-amber-600/10 rounded-full blur-[100px] pointer-events-none group-hover:bg-amber-600/20 transition-all duration-700"></div>
 
                 <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-red-900/30 pb-4 relative z-10">
                   <div className="flex items-center gap-4">
@@ -274,12 +276,12 @@ const Home = () => {
                       <FaMagic className="text-amber-400 text-2xl drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
                     </div>
                     <div>
-                      <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                      <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
                         Rekomendasi Anime
                       </h2>
-                      <p className="text-sm text-gray-300 mt-1">
+                      <p className="text-sm text-gray-300 mt-1 font-medium">
                         Mirip dengan{" "}
-                        <span className="font-bold text-red-400 bg-red-900/30 px-2 py-0.5 rounded-md">
+                        <span className="font-black text-amber-400 bg-amber-900/30 border border-amber-500/30 px-2 py-0.5 rounded-md shadow-inner">
                           {baseRecomTitle}
                         </span>
                       </p>
@@ -301,22 +303,24 @@ const Home = () => {
             )}
 
             {/* SECTION 3: SEDANG TRENDING */}
-            <section className="bg-[#0a0202]/60 backdrop-blur-xl border border-red-900/30 p-6 md:p-8 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
-              <div className="mb-8 flex items-center gap-4 border-b border-red-900/30 pb-4">
+            <section className="glass-card p-6 md:p-8 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)] animate-fade-in relative overflow-hidden group">
+              <div className="absolute bottom-0 right-0 w-64 h-64 bg-orange-600/10 rounded-full blur-[80px] pointer-events-none group-hover:bg-orange-600/20 transition-all duration-700"></div>
+
+              <div className="mb-8 flex items-center gap-4 border-b border-red-900/30 pb-4 relative z-10">
                 <div className="bg-orange-900/30 p-3 rounded-xl border border-orange-500/20">
                   <FaFire className="text-orange-500 text-2xl drop-shadow-[0_0_15px_rgba(249,115,22,0.8)]" />
                 </div>
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                  <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
                     Sedang Trending
                   </h2>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <p className="text-sm text-gray-400 mt-1 font-medium">
                     Judul-judul terpanas yang sedang ramai dibicarakan komunitas.
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 relative z-10">
                 {trendingAnime.map((anime) => (
                   <div
                     key={anime.id}
@@ -328,11 +332,11 @@ const Home = () => {
               </div>
 
               {hasNextPage && (
-                <div className="flex justify-center mt-12">
+                <div className="flex justify-center mt-12 relative z-10">
                   <button
                     onClick={handleLoadMore}
                     disabled={isFetchingMore}
-                    className="bg-black/60 hover:bg-red-900/40 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-red-300 hover:text-white px-8 py-4 rounded-xl transition-all duration-300 shadow-[0_10px_30px_rgba(220,38,38,0.15)] font-bold tracking-wide flex items-center gap-3 group cursor-pointer"
+                    className="btn-secondary py-4 px-8 font-bold flex items-center gap-3 group"
                   >
                     {isFetchingMore ? (
                       <span className="animate-pulse">

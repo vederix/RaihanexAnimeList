@@ -44,7 +44,7 @@ const Auth = () => {
         toast.custom(
           (t) => (
             <div
-              className={`${t.visible ? "animate-enter" : "animate-leave"} max-w-sm w-full bg-[#1a0505]/95 backdrop-blur-2xl shadow-[0_20px_50px_rgba(220,38,38,0.5)] rounded-2xl pointer-events-auto flex border border-red-900/50 overflow-hidden`}
+              className={`${t.visible ? "animate-fade-in" : "animate-leave"} max-w-sm w-full glass-card p-0 shadow-[0_30px_60px_rgba(0,0,0,0.8)] rounded-2xl pointer-events-auto flex overflow-hidden border border-red-500/30`}
             >
               <div className="flex-1 w-0 p-4">
                 <div className="flex items-center">
@@ -77,6 +77,7 @@ const Auth = () => {
         );
 
         navigate("/");
+        return;
       } else {
         // REGISTER
         const { error } = await supabase.auth.signUp({
@@ -92,28 +93,28 @@ const Auth = () => {
 
         toast.success("Pendaftaran berhasil! Silakan login.");
         setIsLogin(true);
+        setLoading(false);
       }
     } catch (error) {
       setErrorMsg(error.message);
-    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex justify-center items-center min-h-[75vh]">
-      <div className="bg-[#1a0505]/40 backdrop-blur-xl p-10 rounded-3xl border border-red-900/30 w-full max-w-md shadow-[0_0_40px_rgba(153,27,27,0.15)] relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-50"></div>
+    <div className="flex justify-center items-center min-h-[75vh] animate-fade-in p-4">
+      <div className="glass-card p-8 sm:p-10 rounded-3xl w-full max-w-md shadow-[0_30px_60px_rgba(0,0,0,0.8)] relative overflow-hidden animate-scale-up">
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-800 via-red-500 to-red-800 opacity-80"></div>
 
-        <h2 className="text-3xl font-extrabold text-center text-white mb-8 tracking-tight">
-          {isLogin ? "Masuk ke " : "Gabung dengan "}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-300">
+        <h2 className="text-3xl font-black text-center text-white mb-8 tracking-tight drop-shadow-md">
+          {isLogin ? "Masuk ke " : "Gabung ke "}
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-red-300 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]">
             RAIHANEX
           </span>
         </h2>
 
         {errorMsg && (
-          <div className="bg-red-950/50 border border-red-800 text-red-300 p-3 rounded-lg mb-5 text-sm text-center backdrop-blur-sm">
+          <div className="bg-red-950/80 border border-red-500/50 text-red-200 px-4 py-3 rounded-xl mb-6 text-sm text-center shadow-[0_0_15px_rgba(220,38,38,0.3)] font-medium">
             {errorMsg}
           </div>
         )}
@@ -121,7 +122,7 @@ const Auth = () => {
         <form onSubmit={handleAuth} className="flex flex-col gap-5">
           {!isLogin && (
             <div>
-              <label className="block text-red-200/70 text-xs font-bold mb-1.5 tracking-wide uppercase">
+              <label className="block text-red-300 text-[11px] font-black mb-2 tracking-widest uppercase">
                 Username / Display Name
               </label>
               <input
@@ -129,14 +130,14 @@ const Auth = () => {
                 required
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full bg-black/40 border border-red-900/30 text-white rounded-xl px-4 py-3.5 focus:outline-none focus:border-red-500/80 focus:ring-1 focus:ring-red-500/50 transition-all"
+                className="w-full input-field px-4 py-3.5 text-sm"
                 placeholder="Misal: MiauAug"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-red-200/70 text-xs font-bold mb-1.5 tracking-wide uppercase">
+            <label className="block text-red-300 text-[11px] font-black mb-2 tracking-widest uppercase">
               Email
             </label>
             <input
@@ -144,13 +145,13 @@ const Auth = () => {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-black/40 border border-red-900/30 text-white rounded-xl px-4 py-3.5 focus:outline-none focus:border-red-500/80 focus:ring-1 focus:ring-red-500/50 transition-all"
+              className="w-full input-field px-4 py-3.5 text-sm"
               placeholder="nama@email.com"
             />
           </div>
 
           <div>
-            <label className="block text-red-200/70 text-xs font-bold mb-1.5 tracking-wide uppercase">
+            <label className="block text-red-300 text-[11px] font-black mb-2 tracking-widest uppercase">
               Password
             </label>
             <input
@@ -158,7 +159,7 @@ const Auth = () => {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-black/40 border border-red-900/30 text-white rounded-xl px-4 py-3.5 focus:outline-none focus:border-red-500/80 focus:ring-1 focus:ring-red-500/50 transition-all"
+              className="w-full input-field px-4 py-3.5 text-sm"
               placeholder="Minimal 6 karakter"
             />
           </div>
@@ -166,17 +167,18 @@ const Auth = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(220,38,38,0.3)] mt-4 border border-red-500/50 cursor-pointer"
+            className="w-full btn-primary py-4 text-sm mt-4 shadow-[0_0_20px_rgba(220,38,38,0.4)]"
           >
-            {loading ? "Memproses..." : isLogin ? "MASUK" : "DAFTAR SEKARANG"}
+            {loading ? "MEMPROSES..." : isLogin ? "MASUK" : "DAFTAR SEKARANG"}
           </button>
         </form>
 
-        <div className="mt-8 text-center text-gray-400 text-sm">
+        <div className="mt-8 text-center text-gray-400 text-[13px] font-medium">
           {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-red-400 hover:text-red-300 font-bold hover:underline transition-all cursor-pointer"
+            type="button"
+            className="text-red-400 hover:text-white font-black transition-colors cursor-pointer ml-1 drop-shadow-md"
           >
             {isLogin ? "Buat Akun Baru" : "Login di sini"}
           </button>

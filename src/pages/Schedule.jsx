@@ -45,7 +45,6 @@ const Schedule = () => {
   });
 
   const fetchSchedule = async () => {
-    setIsLoading(true);
     setIsError(false);
     try {
       const startTime = Math.floor(days[0].getTime() / 1000);
@@ -107,7 +106,7 @@ const Schedule = () => {
     <div className="pb-16 mt-8 min-h-[80vh] relative z-10 pt-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         {/* --- HEADER SECTION GLASSMORPHISM --- */}
-        <div className="relative mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 overflow-hidden bg-gradient-to-br from-[#1a0505]/90 to-[#050101] border border-red-900/40 p-8 md:p-10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-3xl group">
+        <div className="relative mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 overflow-hidden glass-card p-8 md:p-10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] group border-t border-red-900/50 animate-scale-up">
           <div className="absolute -top-32 -left-32 w-96 h-96 bg-red-600/10 rounded-full blur-[100px] pointer-events-none group-hover:bg-red-600/20 transition-all duration-700"></div>
 
           <div className="relative z-10">
@@ -129,7 +128,7 @@ const Schedule = () => {
 
           <Link
             to="/"
-            className="relative z-10 inline-flex items-center gap-2 bg-black/50 hover:bg-red-600 text-gray-300 hover:text-white px-6 py-3.5 rounded-2xl text-sm font-bold transition-all duration-300 border border-red-900/50 hover:border-red-400 w-max h-max shadow-[0_10px_20px_rgba(0,0,0,0.4)] hover:-translate-y-1 cursor-pointer"
+            className="relative z-10 btn-secondary px-6 py-3.5 flex items-center gap-2 w-max h-max shadow-[0_10px_20px_rgba(0,0,0,0.4)] hover:-translate-y-1"
           >
             <FaHome className="text-lg" /> Beranda
           </Link>
@@ -146,10 +145,10 @@ const Schedule = () => {
               <button
                 key={index}
                 onClick={() => setActiveTab(index)}
-                className={`snap-center flex-shrink-0 flex items-center gap-3 px-6 py-3.5 rounded-2xl font-bold transition-all duration-300 border shadow-md group cursor-pointer ${
+                className={`snap-center flex-shrink-0 flex items-center gap-3 px-6 py-3.5 rounded-2xl font-bold transition-all duration-300 border shadow-md group cursor-pointer active:scale-95 ${
                   isActive
                     ? "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.5)] scale-[1.02]"
-                    : "bg-[#0a0202]/80 backdrop-blur-xl text-gray-400 border-red-900/30 hover:bg-red-950/60 hover:text-white hover:border-red-500/50"
+                    : "glass-card text-gray-400 border-red-900/30 hover:bg-red-950/60 hover:text-white hover:border-red-500/50"
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -187,7 +186,7 @@ const Schedule = () => {
             </div>
           </div>
         ) : isError ? (
-          <div className="bg-gradient-to-br from-[#1a0505]/40 to-black/60 backdrop-blur-2xl border border-red-900/30 rounded-3xl py-24 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] px-4">
+          <div className="glass-card rounded-3xl py-24 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] px-4 animate-fade-in border-t border-red-900/50">
             <div className="bg-red-900/20 w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-5 border border-red-900/50 shadow-inner">
               <FaClock className="text-4xl text-red-500/70" />
             </div>
@@ -205,7 +204,7 @@ const Schedule = () => {
             </button>
           </div>
         ) : !scheduleData[activeTab] || scheduleData[activeTab].length === 0 ? (
-          <div className="bg-gradient-to-br from-[#1a0505]/40 to-black/60 backdrop-blur-2xl border border-red-900/30 rounded-3xl py-32 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+          <div className="glass-card rounded-3xl py-32 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-fade-in border-t border-red-900/50">
             <div className="bg-red-900/20 w-24 h-24 mx-auto rounded-full flex items-center justify-center mb-6 border border-red-900/50 shadow-inner">
               <FaClock className="text-5xl text-red-500/70" />
             </div>
@@ -231,7 +230,7 @@ const Schedule = () => {
                 <Link
                   to={`/anime/${item.media?.id}`}
                   key={item.id}
-                  className="group relative bg-[#0a0202]/80 backdrop-blur-xl rounded-2xl overflow-hidden border border-red-900/40 shadow-xl hover:shadow-[0_15px_30px_rgba(220,38,38,0.3)] hover:border-red-500/60 transition-all duration-500 flex flex-col h-full hover:-translate-y-1.5"
+                  className="group relative glass-card glass-card-hover rounded-2xl overflow-hidden shadow-xl flex flex-col h-full hover:-translate-y-1.5"
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-red-900/0 to-red-900/0 group-hover:from-red-900/20 transition-all duration-500 z-10 pointer-events-none"></div>
 

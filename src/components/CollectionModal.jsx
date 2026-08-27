@@ -85,24 +85,27 @@ export default function CollectionModal({ isOpen, onClose, animeId, user }) {
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-[#111] border border-white/10 p-6 rounded-2xl w-full max-w-md relative shadow-2xl my-auto" onClick={e => e.stopPropagation()}>
+      <div className="glass-card rounded-3xl p-6 md:p-8 w-full max-w-md relative shadow-[0_30px_60px_rgba(0,0,0,0.9)] my-auto animate-scale-up" onClick={e => e.stopPropagation()}>
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-2 bg-white/5 rounded-full hover:bg-red-600 cursor-pointer active:scale-95"
+          className="absolute top-4 right-4 bg-red-950/80 hover:bg-red-600 border border-red-500/40 text-white w-8 h-8 rounded-full flex items-center justify-center transition-all z-20 shadow-[0_0_15px_rgba(220,38,38,0.3)] cursor-pointer active:scale-95"
           aria-label="Tutup"
         >
           <FaTimes size={14} />
         </button>
         
-        <h3 className="text-xl font-black text-white flex items-center gap-2 mb-4">
-          <FaLayerGroup className="text-red-500" /> Simpan ke Koleksi
+        <h3 className="text-xl font-black text-white flex items-center gap-3 mb-6 drop-shadow-md">
+          <div className="bg-red-950/80 p-2 rounded-xl shadow-[0_0_15px_rgba(220,38,38,0.3)]">
+            <FaLayerGroup className="text-red-500" />
+          </div>
+          Simpan ke Koleksi
         </h3>
         
-        <div className="max-h-64 overflow-y-auto pr-2 flex flex-col gap-2 scrollbar-thin scrollbar-thumb-red-500/50 scrollbar-track-white/5">
+        <div className="max-h-64 overflow-y-auto pr-2 flex flex-col gap-3 scrollbar-thin scrollbar-thumb-red-500/50 scrollbar-track-white/5">
           {isLoading ? (
-            <div className="text-center py-4 text-gray-400 text-sm">Memuat...</div>
+            <div className="text-center py-8 text-red-400 text-sm font-bold animate-pulse">Memuat...</div>
           ) : collections.length === 0 ? (
-            <div className="text-center py-4 text-gray-400 text-sm">Kamu belum punya koleksi.<br/>Buat di menu Koleksi.</div>
+            <div className="text-center py-8 text-gray-400 text-sm">Kamu belum punya koleksi.<br/>Buat di menu Koleksi.</div>
           ) : (
             collections.map(col => {
               const isAdded = (col.anime_ids || []).includes(animeId);
@@ -111,16 +114,16 @@ export default function CollectionModal({ isOpen, onClose, animeId, user }) {
                   key={col.id}
                   onClick={() => toggleAnimeInCollection(col)}
                   disabled={isProcessing}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left cursor-pointer ${
-                    isAdded ? "bg-red-500/20 border-red-500/50" : "bg-white/5 border-white/10 hover:border-red-500/30 hover:bg-white/10"
+                  className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 text-left cursor-pointer active:scale-[0.98] ${
+                    isAdded ? "bg-red-900/40 border-red-500/50 shadow-[0_0_15px_rgba(220,38,38,0.2)]" : "bg-black/40 border-red-900/30 hover:border-red-500/40 hover:bg-[#1a0505]/60 hover:shadow-[0_4px_12px_rgba(220,38,38,0.1)]"
                   }`}
                 >
                   <div>
-                    <div className="font-bold text-white text-sm line-clamp-1">{col.title}</div>
-                    <div className="text-xs text-gray-400">{(col.anime_ids || []).length} Anime</div>
+                    <div className={`font-bold text-sm line-clamp-1 transition-colors ${isAdded ? "text-white" : "text-gray-200 group-hover:text-white"}`}>{col.title}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{(col.anime_ids || []).length} Anime</div>
                   </div>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                    isAdded ? "bg-red-500 text-white" : "bg-white/10 text-gray-400"
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs transition-all duration-300 ${
+                    isAdded ? "bg-gradient-to-br from-red-600 to-red-800 text-white shadow-[0_0_10px_rgba(220,38,38,0.6)]" : "bg-black/50 text-gray-400 border border-red-900/30"
                   }`}>
                     {isAdded ? <FaCheck /> : <FaPlus />}
                   </div>

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { fetchAniList } from "../utils/anilist";
+import ApiErrorState from "../components/ApiErrorState";
+import toast from "react-hot-toast";
 import {
   FaSnowflake,
   FaLeaf,
@@ -50,6 +52,7 @@ const Seasonal = () => {
   const [season, setSeason] = useState(initial.season);
   const [animeList, setAnimeList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
 
   // Pagination states
   const [page, setPage] = useState(1);
@@ -79,41 +82,53 @@ const Seasonal = () => {
     },
   ];
 
+  const fetchSeasonalAnime = async (isCancelled = false) => {
+    setFetchError(null);
+    try {
+      const data = await fetchAniList(SEASONAL_QUERY, {
+        season: season,
+        seasonYear: year,
+        page: 1,
+      });
+      if (!isCancelled) {
+        setAnimeList(data?.Page?.media || []);
+        setHasNextPage(data?.Page?.pageInfo?.hasNextPage || false);
+        setPage(1);
+      }
+    } catch (error) {
+      console.error("Gagal memuat data anime musiman:", error);
+      if (!isCancelled) {
+        setFetchError("Gagal memuat anime musiman. Silakan coba lagi.");
+        toast.error("Gagal mengambil data anime musiman.");
+      }
+    } finally {
+      if (!isCancelled) {
+        setIsLoading(false);
+        setIsFetchingMore(false);
+      }
+    }
+  };
+
   useEffect(() => {
     let isCancelled = false;
-
-    const fetchSeasonalAnime = async () => {
-      try {
-        const data = await fetchAniList(SEASONAL_QUERY, {
-          season: season,
-          seasonYear: year,
-          page: 1,
-        });
-        if (!isCancelled) {
-          setAnimeList(data?.Page?.media || []);
-          setHasNextPage(data?.Page?.pageInfo?.hasNextPage || false);
-          setPage(1);
-        }
-      } catch (error) {
-        console.error("Gagal memuat data anime musiman:", error);
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false);
-          setIsFetchingMore(false);
-        }
-      }
-    };
-
-    fetchSeasonalAnime();
+    fetchSeasonalAnime(isCancelled);
 
     return () => {
       isCancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [season, year]);
 
+  const isFetchingRef = useRef(false);
+  const observer = useRef();
+
   const handleLoadMore = useCallback(async () => {
-    const nextPage = page + 1;
+    if (isFetchingRef.current || !hasNextPage) return;
+    isFetchingRef.current = true;
     setIsFetchingMore(true);
+    if (observer.current) observer.current.disconnect();
+
+    const nextPage = page + 1;
     try {
       const data = await fetchAniList(SEASONAL_QUERY, {
         season: season,
@@ -130,14 +145,15 @@ const Seasonal = () => {
       });
       setHasNextPage(hasNext);
       setPage(nextPage);
-    } catch {
-      console.error("Gagal memuat lebih banyak anime.");
+    } catch (err) {
+      console.error("Gagal memuat lebih banyak anime:", err);
+      toast.error("Gagal memuat halaman berikutnya.");
     } finally {
+      isFetchingRef.current = false;
       setIsFetchingMore(false);
     }
-  }, [page, season, year]);
+  }, [page, season, year, hasNextPage]);
 
-  const observer = useRef();
   const lastElementRef = useCallback(
     (node) => {
       if (isLoading || isFetchingMore) return;
@@ -181,7 +197,7 @@ const Seasonal = () => {
         </div>
 
         {/* Kontrol Filter (Glassmorphism) */}
-        <div className="bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/40 rounded-2xl p-4 md:p-6 mb-10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-[0_10px_30px_rgba(220,38,38,0.15)]">
+        <div className="glass-card p-4 md:p-6 mb-10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-[0_20px_40px_rgba(0,0,0,0.5)] border-t border-red-900/50 animate-scale-up">
           {/* Input Tahun */}
           <div className="flex items-center gap-4 w-full md:w-auto">
             <label className="text-gray-300 font-bold uppercase tracking-wider text-sm">
@@ -191,7 +207,7 @@ const Seasonal = () => {
               type="number"
               value={year}
               onChange={handleYearChange}
-              className="bg-black/50 border border-red-900/50 text-white font-black text-xl rounded-xl px-4 py-2 w-32 text-center focus:outline-none focus:border-red-500/80 focus:ring-1 focus:ring-red-500/50 transition-all"
+              className="input-field font-black text-xl rounded-xl px-4 py-2 w-32 text-center"
             />
           </div>
 
@@ -201,10 +217,10 @@ const Seasonal = () => {
               <button
                 key={s.value}
                 onClick={() => handleSeasonChange(s.value)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all border cursor-pointer ${
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all border cursor-pointer active:scale-95 ${
                   season === s.value
                     ? "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-500/50 shadow-[0_0_15px_rgba(220,38,38,0.4)] scale-105"
-                    : "bg-black/40 text-gray-400 border-red-900/30 hover:bg-red-900/30 hover:text-white"
+                    : "bg-black/40 text-gray-400 border-red-900/30 hover:bg-[#1a0505]/60 hover:text-white"
                 }`}
               >
                 {s.icon} {s.label}
@@ -218,8 +234,10 @@ const Seasonal = () => {
           <div className="flex justify-center items-center py-20">
             <div className="animate-spin rounded-full h-14 w-14 border-t-2 border-b-2 border-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)]"></div>
           </div>
+        ) : fetchError ? (
+          <ApiErrorState message={fetchError} onRetry={() => fetchSeasonalAnime(false)} />
         ) : animeList.length === 0 ? (
-          <div className="text-center py-20 bg-[#1a0505]/40 backdrop-blur-md rounded-3xl border border-red-900/30">
+          <div className="text-center py-20 glass-card rounded-3xl animate-fade-in border-t border-red-900/50 shadow-[0_20px_40px_rgba(0,0,0,0.5)]">
             <h3 className="text-xl font-bold text-gray-400">
               Tidak ada anime yang ditemukan pada musim ini.
             </h3>
@@ -231,7 +249,7 @@ const Seasonal = () => {
               <Link
                 to={`/anime/${anime.id}`}
                 key={anime.id}
-                className="group relative bg-[#1a0505]/60 backdrop-blur-md rounded-2xl overflow-hidden border border-red-900/30 shadow-lg hover:shadow-[0_0_25px_rgba(220,38,38,0.3)] hover:border-red-500/50 transition-all duration-300 flex flex-col h-full aspect-[2/3]"
+                className="group relative glass-card glass-card-hover rounded-2xl overflow-hidden flex flex-col h-full aspect-[2/3]"
               >
                 {/* Badge Status & Episode */}
                 <div className="absolute top-2 left-2 bg-black/80 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md z-20 border border-red-900/50 flex flex-col gap-1">

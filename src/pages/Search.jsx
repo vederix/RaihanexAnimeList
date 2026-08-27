@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import AnimeCard from "../components/AnimeCard";
 import SkeletonCard from "../components/SkeletonCard";
+import toast from "react-hot-toast";
 import {
   FaSearch,
   FaFilter,
@@ -10,6 +11,7 @@ import {
   FaSun,
 } from "react-icons/fa";
 import { fetchAniList } from "../utils/anilist";
+import ApiErrorState from "../components/ApiErrorState";
 
 // 1. QUERY GRAPHQL YANG SUDAH LENGKAP (Termasuk Season & Episodes)
 const SEARCH_QUERY = `
@@ -133,9 +135,16 @@ const Search = () => {
     setIsLoading(true);
   };
 
+  const isFetchingRef = useRef(false);
+  const observer = useRef();
+
   const handleLoadMore = useCallback(async () => {
-    const nextPage = page + 1;
+    if (isFetchingRef.current || !hasNextPage) return;
+    isFetchingRef.current = true;
     setIsFetchingMore(true);
+    if (observer.current) observer.current.disconnect();
+
+    const nextPage = page + 1;
     try {
       const variables = {
         search: urlQuery || undefined,
@@ -150,20 +159,21 @@ const Search = () => {
       const hasNext = data?.Page?.pageInfo?.hasNextPage || false;
 
       setSearchResults((prev) => {
-        const prevIds = new Set(prev.map(a => a.id));
-        const filteredNew = newAnimes.filter(a => !prevIds.has(a.id));
+        const prevIds = new Set(prev.map((a) => a.id));
+        const filteredNew = newAnimes.filter((a) => !prevIds.has(a.id));
         return [...prev, ...filteredNew];
       });
       setHasNextPage(hasNext);
       setPage(nextPage);
-    } catch {
-      setApiError("Gagal memuat lebih banyak anime.");
+    } catch (err) {
+      console.error("Gagal memuat lebih banyak anime:", err);
+      toast.error("Gagal memuat lebih banyak anime.");
     } finally {
+      isFetchingRef.current = false;
       setIsFetchingMore(false);
     }
-  }, [page, urlQuery, genre, format, season, year]);
+  }, [page, urlQuery, genre, format, season, year, hasNextPage]);
 
-  const observer = useRef();
   const lastElementRef = useCallback(
     (node) => {
       if (isLoading || isFetchingMore) return;
@@ -224,7 +234,7 @@ const Search = () => {
               />
               <button
                 type="submit"
-                className="absolute right-2 top-2 bottom-2 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white w-12 rounded-full transition-all flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.4)] border border-red-400/30 cursor-pointer"
+                className="absolute right-2 top-2 bottom-2 btn-primary w-12 rounded-full flex items-center justify-center cursor-pointer p-0 shadow-[0_0_15px_rgba(220,38,38,0.4)]"
               >
                 <FaSearch />
               </button>
@@ -251,7 +261,7 @@ const Search = () => {
                 : "opacity-0 scale-y-0 max-h-0 pointer-events-none"
             }`}
           >
-            <div className="bg-[#1a0505]/95 backdrop-blur-3xl border border-red-900/50 p-6 md:p-8 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.8)] mt-3">
+            <div className="glass-card p-6 md:p-8 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.8)] mt-3 border-t border-red-900/50">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Kolom Kiri: Musim & Tahun */}
                 <div className="flex flex-col gap-6">
@@ -262,7 +272,7 @@ const Search = () => {
                     <select
                       value={season}
                       onChange={(e) => setSeason(e.target.value)}
-                      className="w-full bg-black/60 border border-red-900/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-500/80 appearance-none cursor-pointer hover:bg-black/80 transition-colors"
+                      className="w-full input-field px-4 py-3 cursor-pointer"
                     >
                       {SEASON_LIST.map((s) => (
                         <option
@@ -285,7 +295,7 @@ const Search = () => {
                       placeholder="Contoh: 2026"
                       value={year}
                       onChange={(e) => setYear(e.target.value)}
-                      className="w-full bg-black/60 border border-red-900/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-500/80 transition-colors placeholder-gray-600"
+                      className="w-full input-field px-4 py-3"
                     />
                   </div>
                 </div>
@@ -304,10 +314,10 @@ const Search = () => {
                           onClick={() =>
                             setFormat(format === f.value ? "" : f.value)
                           }
-                          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border cursor-pointer ${
+                          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border cursor-pointer active:scale-95 ${
                             format === f.value
-                              ? "bg-red-600 text-white border-red-400 shadow-[0_0_10px_rgba(220,38,38,0.5)]"
-                              : "bg-black/40 text-gray-400 border-red-900/50 hover:border-red-500 hover:text-white"
+                              ? "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-400 shadow-[0_0_10px_rgba(220,38,38,0.5)]"
+                              : "bg-[#0a0202] text-gray-400 border-red-900/30 hover:border-red-500/50 hover:text-white"
                           }`}
                         >
                           {f.label}
@@ -326,10 +336,10 @@ const Search = () => {
                           key={g}
                           type="button"
                           onClick={() => setGenre(genre === g ? "" : g)}
-                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer active:scale-95 ${
                             genre === g
                               ? "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-400 shadow-[0_0_10px_rgba(220,38,38,0.5)]"
-                              : "bg-black/40 text-gray-400 border-red-900/50 hover:border-red-500 hover:text-white"
+                              : "bg-[#0a0202] text-gray-400 border-red-900/30 hover:border-red-500/50 hover:text-white"
                           }`}
                         >
                           {g}
@@ -354,7 +364,7 @@ const Search = () => {
                 <button
                   type="button"
                   onClick={applyFiltersAndSearch}
-                  className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] border border-red-500/50 cursor-pointer"
+                  className="btn-primary px-8 py-3 text-sm font-bold shadow-[0_0_15px_rgba(220,38,38,0.3)]"
                 >
                   Terapkan Filter
                 </button>
@@ -365,18 +375,16 @@ const Search = () => {
 
         {/* --- ERROR MESSAGE --- */}
         {apiError && (
-          <div className="bg-red-900/20 border border-red-500/50 text-red-200 px-6 py-4 rounded-2xl text-center mb-8 backdrop-blur-sm">
-            {apiError}
-          </div>
+          <ApiErrorState message={apiError} />
         )}
 
         {/* --- HASIL PENCARIAN --- */}
         {!isLoading && searchResults.length === 0 && !apiError ? (
-          <div className="text-center py-20 bg-[#1a0505]/40 backdrop-blur-md rounded-3xl border border-red-900/30 mt-8">
+          <div className="text-center py-20 glass-card rounded-3xl mt-8">
             <h3 className="text-xl font-bold text-gray-400">
               Belum ada anime yang dicari.
             </h3>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 mt-2 font-medium">
               Gunakan kotak pencarian atau terapkan filter untuk memulai
               eksplorasi.
             </p>
@@ -406,7 +414,7 @@ const Search = () => {
             <button
               onClick={handleLoadMore}
               disabled={isFetchingMore}
-              className="bg-black/40 hover:bg-red-900/40 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-red-300 hover:text-white px-8 py-3.5 rounded-full transition-all shadow-[0_5px_20px_rgba(220,38,38,0.15)] font-bold flex items-center gap-2 cursor-pointer"
+              className="btn-secondary px-8 py-3.5 font-bold flex items-center gap-2"
             >
               {isFetchingMore ? (
                 <span className="animate-pulse">Memuat...</span>

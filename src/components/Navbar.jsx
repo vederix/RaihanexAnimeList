@@ -14,7 +14,6 @@ import {
   FaBookmark,
   FaSpinner,
   FaCalendarAlt,
-  FaBars,
   FaSun,
   FaTimes,
   FaFire,
@@ -47,7 +46,6 @@ const Navbar = () => {
 
   // States
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isRandomizerOpen, setIsRandomizerOpen] = useState(false);
   const [watchlistCount, setWatchlistCount] = useState(0);
 
@@ -192,12 +190,11 @@ const Navbar = () => {
       setGlobalSearch("");
       setLiveResults([]);
       setIsSearchExpanded(false);
-      setIsMobileMenuOpen(false);
+      setIsSearchExpanded(false);
     }
   };
 
   const handleLinkClick = () => {
-    setIsMobileMenuOpen(false);
     setIsProfileOpen(false);
   };
 
@@ -213,303 +210,406 @@ const Navbar = () => {
     { to: "/community", icon: <FaGlobe size={18} />, label: "Komunitas" },
   ];
 
+  const BottomNavLinks = [
+    { to: "/", icon: <FaHome size={20} />, label: "Beranda" },
+    { to: "/schedule", icon: <FaCalendarAlt size={20} />, label: "Jadwal" },
+    { to: "/search", icon: <FaCompass size={20} />, label: "Eksplor" },
+    { to: "/watchlist", icon: <FaBookmark size={20} />, label: "Watchlist" },
+  ];
+
+  const MobileExtraLinks = [
+    { to: "/seasonal", icon: <FaSun />, label: "Anime Musiman" },
+    { to: "/compare", icon: <FaFire />, label: "Komparasi" },
+    { to: "/collections", icon: <FaList />, label: "Koleksi" },
+    { to: "/community", icon: <FaGlobe />, label: "Komunitas Feed" },
+  ];
+
   return (
-    <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        isScrolled
-          ? "bg-[#050101]/80 backdrop-blur-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] border-b border-red-900/30 py-3"
-          : "bg-gradient-to-b from-black/90 via-black/50 to-transparent py-5 lg:py-6"
-      }`}
-    >
-      <div className="container mx-auto px-4 lg:px-8 flex justify-between items-center relative">
-        {/* LOGO KIRI */}
-        <Link
-          to="/"
-          onClick={handleLinkClick}
-          className="text-2xl font-black tracking-tighter text-white group flex items-center gap-3 flex-shrink-0 z-50"
-        >
-          <div className="relative flex items-center justify-center w-10 h-10 bg-gradient-to-br from-red-600 to-red-900 rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.4)] group-hover:shadow-[0_0_30px_rgba(220,38,38,0.8)] transition-all duration-500 group-hover:scale-105">
-            <span className="text-white font-bold text-lg">RX</span>
-          </div>
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 group-hover:to-white transition-colors hidden sm:block text-xl">
-            RAIHAN<span className="text-red-500">EX</span>
-            <span className="text-red-600">.</span>
-          </span>
-        </Link>
-
-        {/* DOCK NAVIGASI TENGAH (DESKTOP ONLY) */}
-        <div
-          className="hidden lg:flex absolute left-1/2 -translate-x-1/2 items-center gap-2 bg-[#1a0505]/40 backdrop-blur-xl px-2 py-1.5 rounded-full border border-red-500/20 shadow-[0_8px_32px_rgba(220,38,38,0.1)] hover:border-red-500/40 transition-all duration-500"
-          ref={searchContainerRef}
-        >
-          {NavLinks.map((link, idx) => (
-            <div key={idx} className="relative group px-3 py-2">
-              <Link
-                to={link.to}
-                onClick={handleLinkClick}
-                className={`text-gray-400 hover:text-red-400 transition-all duration-300 flex items-center justify-center ${location.pathname === link.to ? "text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" : ""}`}
-              >
-                {link.icon}
-              </Link>
-              {/* Tooltip */}
-              <span className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-black/90 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap border border-red-900/50 shadow-xl">
-                {link.label}
-              </span>
+    <>
+      {/* TOP NAVBAR (Desktop & Mobile) */}
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+          isScrolled
+            ? "bg-[#050101]/80 backdrop-blur-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] border-b border-red-900/30 py-3"
+            : "bg-gradient-to-b from-black/90 via-black/50 to-transparent py-4 lg:py-5"
+        }`}
+      >
+        <div className="container mx-auto px-4 lg:px-8 flex justify-between items-center relative gap-4">
+          
+          {/* LOGO (KIRI) */}
+          <Link
+            to="/"
+            onClick={handleLinkClick}
+            className="text-2xl font-black tracking-tighter text-white group flex items-center gap-3 flex-shrink-0 z-50"
+          >
+            <div className="relative flex items-center justify-center w-9 h-9 lg:w-10 lg:h-10 bg-gradient-to-br from-red-600 to-red-900 rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.4)] group-hover:shadow-[0_0_30px_rgba(220,38,38,0.8)] transition-all duration-500 group-hover:scale-105">
+              <span className="text-white font-bold text-base lg:text-lg">RX</span>
             </div>
-          ))}
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 group-hover:to-white transition-colors text-lg lg:text-xl">
+              RAIHAN<span className="text-red-500">EX</span>
+              <span className="text-red-600 hidden lg:inline">.</span>
+            </span>
+          </Link>
 
-          {/* Tombol Gacha / Roulette Randomizer Desktop */}
-          <div className="relative group px-2 py-1">
+          {/* TENGAH: DOCK MENU (DESKTOP ONLY) */}
+          <div className="hidden lg:flex flex-1 justify-center">
+            <div className="flex items-center gap-2 bg-[#1a0505]/60 backdrop-blur-xl px-4 py-2 rounded-full border border-red-500/20 shadow-[0_8px_32px_rgba(220,38,38,0.15)] hover:border-red-500/40 transition-all duration-500">
+              {NavLinks.map((link, idx) => {
+                const isActive = location.pathname === link.to;
+                return (
+                  <div key={idx} className="relative group px-2">
+                    <Link
+                      to={link.to}
+                      onClick={handleLinkClick}
+                      className={`text-gray-400 hover:text-red-400 transition-all duration-300 flex items-center justify-center p-2 rounded-full hover:bg-white/5 ${isActive ? "text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)] scale-110 bg-white/5" : ""}`}
+                    >
+                      {link.icon}
+                    </Link>
+                    {/* Tooltip */}
+                    <span className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-black/90 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap border border-red-900/50 shadow-xl z-50">
+                      {link.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* KANAN: PENCARIAN & PROFIL */}
+          <div className="flex items-center gap-3 lg:gap-5 flex-shrink-0 relative z-50" ref={searchContainerRef}>
+            
+            {/* GACHA ROULETTE (Mobile + Desktop) */}
             <button
               onClick={() => setIsRandomizerOpen(true)}
-              className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600/30 to-red-600/30 hover:from-amber-600 hover:to-red-600 text-amber-400 hover:text-white border border-amber-500/40 hover:border-amber-400 transition-all flex items-center justify-center cursor-pointer shadow-sm hover:shadow-[0_0_15px_rgba(234,179,8,0.6)] group-hover:scale-105"
+              className="w-9 h-9 lg:w-10 lg:h-10 rounded-full bg-gradient-to-tr from-amber-600/20 to-red-600/20 text-amber-400 border border-amber-500/30 flex items-center justify-center cursor-pointer shadow-sm active:scale-95 transition-all hover:border-amber-500/60 hover:shadow-[0_0_15px_rgba(245,158,11,0.3)]"
+              title="Gacha Roulette"
             >
-              <FaDice size={15} />
+              <FaDice size={16} />
             </button>
-            <span className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-black/90 text-amber-300 text-[11px] font-black px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap border border-amber-500/40 shadow-xl">
-              🎲 Gacha Anime
-            </span>
-          </div>
-
-          <div className="h-6 w-px bg-red-900/50 mx-1"></div>
-
-          {/* Kolom Pencarian Expandable */}
-          <form
-            onSubmit={handleGlobalSearchSubmit}
-            className="relative flex items-center px-2"
-          >
-            <div
-              className={`flex items-center bg-black/40 rounded-full border transition-all duration-500 overflow-hidden ${isSearchExpanded || globalSearch ? "border-red-500/50 w-64 px-4" : "border-transparent w-10 px-0 hover:bg-white/5 cursor-pointer"}`}
-              onClick={() => setIsSearchExpanded(true)}
+            
+            {/* PENCARIAN MOBILE (TOGGLE) */}
+            <button
+              onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+              className="lg:hidden w-9 h-9 rounded-full bg-[#1a0505]/60 text-gray-300 border border-red-900/40 flex items-center justify-center cursor-pointer shadow-sm active:scale-95 transition-all"
             >
-              <button
-                type="submit"
-                className={`text-gray-400 hover:text-red-400 transition-colors flex-shrink-0 ${!isSearchExpanded && !globalSearch ? "m-auto p-2" : ""}`}
-              >
-                {isLiveSearching ? (
-                  <FaSpinner className="animate-spin text-red-500" size={16} />
-                ) : (
-                  <FaSearch size={16} />
-                )}
-              </button>
-              <input
-                type="text"
-                placeholder="Cari anime..."
-                value={globalSearch}
-                onChange={handleSearchInputChange}
-                className={`bg-transparent text-white text-sm outline-none transition-all duration-500 placeholder-gray-500 h-10 ${isSearchExpanded || globalSearch ? "w-full ml-3 opacity-100" : "w-0 opacity-0"}`}
-                onBlur={() => !globalSearch && setIsSearchExpanded(false)}
-              />
-            </div>
+              {isSearchExpanded ? <FaTimes size={16} className="text-red-400" /> : <FaSearch size={16} />}
+            </button>
 
-            {/* DROPDOWN HASIL PENCARIAN INSTAN */}
-            {liveResults.length > 0 && (
-              <div className="absolute top-[130%] left-1/2 -translate-x-1/2 w-[350px] bg-[#1a0505]/95 backdrop-blur-3xl border border-red-900/50 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden z-50 flex flex-col animate-fade-in origin-top">
-                {liveResults.map((anime) => (
-                  <Link
-                    to={`/anime/${anime.id}`}
-                    key={anime.id}
-                    onClick={() => {
-                      setLiveResults([]);
-                      setGlobalSearch("");
-                      setIsSearchExpanded(false);
-                    }}
-                    className="flex items-center gap-4 p-3 hover:bg-red-900/30 transition-colors border-b border-red-900/20 last:border-0 group"
-                  >
-                    <img
-                      src={anime.coverImage.medium}
-                      alt="cover"
-                      className="w-12 h-16 object-cover rounded-lg shadow-md group-hover:scale-105 transition-transform"
-                    />
-                    <div className="flex flex-col flex-1 overflow-hidden">
-                      <span className="text-white font-bold text-sm truncate group-hover:text-red-400 transition-colors">
-                        {anime.title.romaji}
-                      </span>
-                      <span className="text-gray-400 text-xs mt-1 bg-black/40 w-max px-2 py-0.5 rounded-md border border-red-900/30">
-                        {anime.seasonYear || "TBA"}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
+            {/* PENCARIAN DESKTOP (EXPANDABLE/FIXED) */}
+            <form
+              onSubmit={handleGlobalSearchSubmit}
+              className="hidden lg:flex relative items-center"
+            >
+              <div
+                className={`flex items-center bg-black/40 rounded-full border transition-all duration-500 overflow-hidden ${isSearchExpanded || globalSearch ? "border-red-500/50 w-64 px-4 shadow-[0_0_15px_rgba(220,38,38,0.2)]" : "border-red-900/40 w-10 px-0 hover:border-red-500/40 cursor-pointer"}`}
+                onClick={() => setIsSearchExpanded(true)}
+              >
                 <button
                   type="submit"
-                  className="bg-gradient-to-r from-red-900/40 to-black/40 text-red-400 text-xs font-bold py-3 hover:from-red-800/50 transition-all text-center w-full cursor-pointer"
+                  className={`text-gray-400 hover:text-red-400 transition-colors flex-shrink-0 ${!isSearchExpanded && !globalSearch ? "m-auto p-2" : ""}`}
                 >
-                  Lihat Semua Hasil
+                  {isLiveSearching ? (
+                    <FaSpinner className="animate-spin text-red-500" size={16} />
+                  ) : (
+                    <FaSearch size={16} />
+                  )}
                 </button>
-              </div>
-            )}
-          </form>
-        </div>
-
-        {/* PROFIL KANAN & HAMBURGER (MOBILE) */}
-        <div className="flex items-center gap-4 z-50">
-          {user ? (
-            <div className="flex items-center gap-4 relative" ref={profileRef}>
-              <Link
-                to="/watchlist"
-                onClick={handleLinkClick}
-                className="hidden lg:flex items-center gap-2 text-gray-300 hover:text-white transition-colors text-sm font-medium group"
-              >
-                <FaBookmark className="text-gray-400 group-hover:text-red-400 transition-colors drop-shadow-md" />
-                <span>Watchlist</span>
-              </Link>
-
-              <button
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center gap-2 bg-[#1a0505]/60 hover:bg-red-900/40 p-1 lg:pl-1 lg:pr-3 lg:py-1 rounded-full border border-red-900/30 hover:border-red-500/50 transition-all duration-300 shadow-lg cursor-pointer"
-              >
-                <div className="relative">
-                  <img
-                    src={avatarUrl}
-                    alt="Avatar"
-                    className="w-8 h-8 rounded-full border border-red-500/50"
-                  />
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-[#0a0202] rounded-full"></div>
-                </div>
-                <span className="text-sm font-bold text-white hidden lg:block">
-                  {displayName}
-                </span>
-                <FaChevronDown
-                  size={10}
-                  className={`text-gray-400 transition-transform duration-300 hidden lg:block ${isProfileOpen ? "rotate-180" : ""}`}
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Cari anime... (Ctrl+K)"
+                  value={globalSearch}
+                  onChange={handleSearchInputChange}
+                  className={`bg-transparent text-white text-sm outline-none transition-all duration-500 placeholder-gray-500 h-10 ${isSearchExpanded || globalSearch ? "w-full ml-3 opacity-100" : "w-0 opacity-0"}`}
+                  onBlur={() => !globalSearch && setIsSearchExpanded(false)}
                 />
-              </button>
+              </div>
 
-              {/* POP-UP PROFIL MENGAMBANG */}
-              <div
-                className={`absolute top-[130%] right-0 w-72 bg-[#1a0505]/95 backdrop-blur-3xl border border-red-900/50 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] transition-all duration-300 origin-top-right overflow-hidden ${isProfileOpen ? "opacity-100 scale-100 visible translate-y-0" : "opacity-0 scale-95 invisible -translate-y-4"}`}
-              >
-                <div className="p-5 border-b border-red-900/30 flex items-center gap-4 bg-gradient-to-br from-red-900/20 to-black/40">
-                  <img
-                    src={avatarUrl}
-                    alt="Avatar"
-                    className="w-14 h-14 rounded-full border-2 border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)]"
-                  />
-                  <div className="overflow-hidden">
-                    <h3 className="font-extrabold text-white text-base truncate">
-                      {displayName}
-                    </h3>
-                    <p className="text-xs text-gray-400 truncate mt-1">
-                      <FaEnvelope className="inline mr-1 text-red-500" />
-                      {userEmail}
-                    </p>
-                  </div>
-                </div>
-                <div className="p-3">
-                  <Link
-                    to="/watchlist"
-                    onClick={handleLinkClick}
-                    className="bg-black/40 hover:bg-red-900/30 border border-red-900/20 rounded-xl p-3 mb-2 flex items-center justify-between transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="bg-red-900/40 group-hover:bg-red-500 text-red-400 group-hover:text-white p-2 rounded-lg transition-colors">
-                        <FaBookmark size={14} />
+              {/* DROPDOWN HASIL PENCARIAN (Desktop) */}
+              {liveResults.length > 0 && (
+                <div className="absolute top-[130%] right-0 w-[350px] bg-[#1a0505]/95 backdrop-blur-3xl border border-red-900/50 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] overflow-hidden z-50 flex flex-col animate-fade-in origin-top-right">
+                  {liveResults.map((anime) => (
+                    <Link
+                      to={`/anime/${anime.id}`}
+                      key={anime.id}
+                      onClick={() => {
+                        setLiveResults([]);
+                        setGlobalSearch("");
+                        setIsSearchExpanded(false);
+                      }}
+                      className="flex items-center gap-4 p-3 hover:bg-red-900/30 transition-colors border-b border-red-900/20 last:border-0 group"
+                    >
+                      <img
+                        src={anime.coverImage.medium}
+                        alt="cover"
+                        className="w-10 h-14 object-cover rounded-lg shadow-md group-hover:scale-105 transition-transform"
+                      />
+                      <div className="flex flex-col flex-1 overflow-hidden">
+                        <span className="text-white font-bold text-sm truncate group-hover:text-red-400 transition-colors">
+                          {anime.title.romaji}
+                        </span>
+                        <span className="text-gray-400 text-[10px] mt-0.5 bg-black/40 w-max px-2 py-0.5 rounded-md border border-red-900/30">
+                          {anime.seasonYear || "TBA"}
+                        </span>
                       </div>
-                      <span className="text-sm font-bold text-gray-300 group-hover:text-white">
-                        Watchlist Saya
-                      </span>
-                    </div>
-                    <span className="text-sm font-black text-white bg-red-600 px-2.5 py-1 rounded-lg shadow-md">
-                      {watchlistCount}
-                    </span>
-                  </Link>
-                  <Link
-                    to="/profile"
-                    onClick={handleLinkClick}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-300 hover:text-white hover:bg-red-900/30 rounded-xl transition-colors"
-                  >
-                    <FaUser className="text-gray-400" /> Dasbor Profil
-                  </Link>
+                    </Link>
+                  ))}
                   <button
-                    onClick={handleLogoutClick}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-400 hover:text-white hover:bg-red-600 rounded-xl transition-all mt-1 cursor-pointer"
+                    type="submit"
+                    className="bg-gradient-to-r from-red-900/40 to-black/40 text-red-400 text-xs font-bold py-3 hover:from-red-800/50 transition-all text-center w-full cursor-pointer"
                   >
-                    <FaSignOutAlt /> Keluar Akun
+                    Lihat Semua Hasil
                   </button>
                 </div>
-              </div>
-            </div>
-          ) : (
-            <Link
-              to="/auth"
-              onClick={handleLinkClick}
-              className="hidden lg:flex bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-2.5 rounded-full font-bold shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all"
-            >
-              Masuk
-            </Link>
-          )}
+              )}
+            </form>
 
-          {/* HAMBURGER BUTTON (MOBILE) */}
+            {/* HASIL PENCARIAN (Mobile) */}
+            {isSearchExpanded && (
+              <div className="lg:hidden absolute top-14 right-0 w-[85vw] sm:w-[300px] bg-[#0a0202]/95 backdrop-blur-2xl border border-red-900/50 rounded-2xl shadow-2xl p-3 animate-fade-in origin-top-right">
+                <form onSubmit={handleGlobalSearchSubmit} className="relative">
+                  <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input
+                    type="text"
+                    placeholder="Cari anime..."
+                    value={globalSearch}
+                    onChange={handleSearchInputChange}
+                    className="w-full bg-black/60 border border-red-900/50 text-white rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-red-500"
+                    autoFocus
+                  />
+                </form>
+                {/* Mobile Live Results */}
+                {liveResults.length > 0 && (
+                  <div className="mt-2 flex flex-col gap-2 max-h-[60vh] overflow-y-auto hide-scrollbar">
+                    {liveResults.map((anime) => (
+                      <Link
+                        to={`/anime/${anime.id}`}
+                        key={anime.id}
+                        onClick={() => {
+                          setLiveResults([]);
+                          setGlobalSearch("");
+                          setIsSearchExpanded(false);
+                        }}
+                        className="flex items-center gap-3 p-2 rounded-xl hover:bg-red-900/30 transition-colors border border-transparent hover:border-red-900/20"
+                      >
+                        <img src={anime.coverImage.medium} alt="cover" className="w-10 h-14 object-cover rounded-md" />
+                        <div className="flex flex-col flex-1 overflow-hidden">
+                          <span className="text-white font-bold text-xs truncate">{anime.title.romaji}</span>
+                          <span className="text-gray-500 text-[10px] mt-0.5">{anime.seasonYear || "TBA"}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PEMBATAS DESKTOP */}
+            <div className="hidden lg:block h-8 w-px bg-red-900/50 mx-1"></div>
+
+            {/* PROFIL / AUTH KANAN (DESKTOP ONLY) */}
+            <div className="hidden lg:flex items-center z-50">
+              {user ? (
+                <div className="flex items-center gap-4 relative" ref={profileRef}>
+                  <button
+                    onClick={() => setIsProfileOpen(!isProfileOpen)}
+                    className="flex items-center gap-2 bg-[#1a0505]/60 hover:bg-red-900/40 p-1 pl-1 pr-3 py-1 rounded-full border border-red-900/30 hover:border-red-500/50 transition-all duration-300 shadow-lg cursor-pointer group"
+                  >
+                    <div className="relative">
+                      <img
+                        src={avatarUrl}
+                        alt="Avatar"
+                        className="w-8 h-8 rounded-full border border-red-500/50 group-hover:border-red-400 transition-colors"
+                      />
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-[#0a0202] rounded-full"></div>
+                    </div>
+                    <span className="text-sm font-bold text-white hidden xl:block max-w-[100px] truncate">
+                      {displayName}
+                    </span>
+                    <FaChevronDown
+                      size={10}
+                      className={`text-gray-400 transition-transform duration-300 ${isProfileOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  {/* POP-UP PROFIL MENGAMBANG (DESKTOP) */}
+                  <div
+                    className={`absolute top-[130%] right-0 w-72 bg-[#1a0505]/95 backdrop-blur-3xl border border-red-900/50 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.9)] transition-all duration-300 origin-top-right overflow-hidden ${isProfileOpen ? "opacity-100 scale-100 visible translate-y-0" : "opacity-0 scale-95 invisible -translate-y-4"}`}
+                  >
+                    <div className="p-5 border-b border-red-900/30 flex items-center gap-4 bg-gradient-to-br from-red-900/20 to-black/40">
+                      <img
+                        src={avatarUrl}
+                        alt="Avatar"
+                        className="w-14 h-14 rounded-full border-2 border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)]"
+                      />
+                      <div className="overflow-hidden">
+                        <h3 className="font-extrabold text-white text-base truncate">
+                          {displayName}
+                        </h3>
+                        <p className="text-xs text-gray-400 truncate mt-1">
+                          <FaEnvelope className="inline mr-1 text-red-500" />
+                          {userEmail}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="p-3">
+                      <Link
+                        to="/watchlist"
+                        onClick={handleLinkClick}
+                        className="bg-black/40 hover:bg-red-900/30 border border-red-900/20 rounded-xl p-3 mb-2 flex items-center justify-between transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="bg-red-900/40 group-hover:bg-red-500 text-red-400 group-hover:text-white p-2 rounded-lg transition-colors">
+                            <FaBookmark size={14} />
+                          </div>
+                          <span className="text-sm font-bold text-gray-300 group-hover:text-white">
+                            Watchlist Saya
+                          </span>
+                        </div>
+                        <span className="text-sm font-black text-white bg-red-600 px-2.5 py-1 rounded-lg shadow-md">
+                          {watchlistCount}
+                        </span>
+                      </Link>
+                      <Link
+                        to="/profile"
+                        onClick={handleLinkClick}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-300 hover:text-white hover:bg-red-900/30 rounded-xl transition-colors"
+                      >
+                        <FaUser className="text-gray-400" /> Dasbor Profil
+                      </Link>
+                      <button
+                        onClick={handleLogoutClick}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-400 hover:text-white hover:bg-red-600 rounded-xl transition-all mt-1 cursor-pointer"
+                      >
+                        <FaSignOutAlt /> Keluar Akun
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Link
+                  to="/auth"
+                  onClick={handleLinkClick}
+                  className="btn-primary px-6 py-2 text-sm rounded-full"
+                >
+                  Masuk
+                </Link>
+              )}
+            </div>
+
+          </div>
+        </div>
+      </nav>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0a0202]/90 backdrop-blur-2xl border-t border-red-900/40 shadow-[0_-10px_30px_rgba(0,0,0,0.8)] pb-[env(safe-area-inset-bottom)]">
+        <div className="flex justify-around items-center h-16 px-2 relative">
+          {BottomNavLinks.map((link, idx) => {
+            const isActive = location.pathname === link.to;
+            return (
+              <Link
+                key={idx}
+                to={link.to}
+                onClick={handleLinkClick}
+                className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-300 relative ${isActive ? "text-red-500 scale-105" : "text-gray-500 hover:text-gray-300"}`}
+              >
+                {isActive && (
+                  <div className="absolute -top-3 w-8 h-1 bg-gradient-to-r from-red-600 to-red-400 rounded-b-full shadow-[0_0_10px_rgba(220,38,38,0.8)] animate-fade-in"></div>
+                )}
+                <div className={`${isActive ? "drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" : ""}`}>
+                  {link.icon}
+                </div>
+                <span className={`text-[10px] font-bold ${isActive ? "text-white" : ""}`}>{link.label}</span>
+              </Link>
+            );
+          })}
+          
+          {/* PROFILE / MENU BUTTON FOR MOBILE */}
           <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden text-gray-300 hover:text-white bg-[#1a0505]/80 p-2.5 rounded-xl border border-red-900/40 focus:outline-none transition-colors cursor-pointer"
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all duration-300 relative ${isProfileOpen ? "text-red-500 scale-105" : "text-gray-500"}`}
           >
-            {isMobileMenuOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
+            {isProfileOpen && (
+              <div className="absolute -top-3 w-8 h-1 bg-gradient-to-r from-red-600 to-red-400 rounded-b-full shadow-[0_0_10px_rgba(220,38,38,0.8)] animate-fade-in"></div>
+            )}
+            {user ? (
+              <div className="relative">
+                <img
+                  src={avatarUrl}
+                  alt="Avatar"
+                  className={`w-5 h-5 rounded-full border transition-all ${isProfileOpen ? "border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" : "border-gray-500"}`}
+                />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 border border-[#0a0202] rounded-full"></div>
+              </div>
+            ) : (
+              <FaUser size={20} className={isProfileOpen ? "drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" : ""} />
+            )}
+            <span className={`text-[10px] font-bold ${isProfileOpen ? "text-white" : ""}`}>{user ? "Profil" : "Masuk"}</span>
           </button>
         </div>
-      </div>
 
-      {/* MOBILE MENU DROPDOWN */}
-      <div
-        className={`lg:hidden absolute top-full left-0 w-full bg-[#0a0202]/95 backdrop-blur-3xl border-b border-red-900/50 overflow-hidden transition-all duration-500 ease-in-out ${isMobileMenuOpen ? "max-h-[500px] opacity-100 border-opacity-100" : "max-h-0 opacity-0 border-opacity-0"}`}
-      >
-        <div className="px-4 py-6 flex flex-col gap-2">
-          {/* Mobile Search */}
-          <form onSubmit={handleGlobalSearchSubmit} className="relative mb-4">
-            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Cari anime..."
-              value={globalSearch}
-              onChange={handleSearchInputChange}
-              className="w-full bg-black/60 border border-red-900/50 text-white rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-red-500"
-            />
-          </form>
-
-          {NavLinks.map((link, idx) => (
-            <Link
-              key={idx}
-              to={link.to}
-              onClick={handleLinkClick}
-              className={`flex items-center gap-4 px-4 py-3 rounded-xl font-bold transition-colors ${location.pathname === link.to ? "bg-red-900/40 text-red-400" : "text-gray-300 hover:bg-black/50 hover:text-white"}`}
-            >
-              <div
-                className={
-                  location.pathname === link.to
-                    ? "text-red-500"
-                    : "text-gray-500"
-                }
-              >
-                {link.icon}
+        {/* MOBILE BOTTOM SHEET FOR PROFILE & EXTRA LINKS */}
+        <div
+          className={`absolute bottom-[100%] left-0 w-full bg-[#0a0202]/95 backdrop-blur-3xl border-t border-red-900/50 rounded-t-3xl shadow-[0_-20px_50px_rgba(0,0,0,0.9)] overflow-hidden transition-all duration-300 ease-in-out origin-bottom ${isProfileOpen ? "max-h-[80vh] opacity-100" : "max-h-0 opacity-0"}`}
+        >
+          <div className="p-5 flex flex-col gap-4 max-h-[80vh] overflow-y-auto hide-scrollbar">
+            {/* User Info or Auth CTA */}
+            {user ? (
+              <div className="bg-gradient-to-br from-red-900/20 to-black/40 border border-red-900/30 rounded-2xl p-4 flex items-center gap-4">
+                <img src={avatarUrl} alt="Avatar" className="w-12 h-12 rounded-full border-2 border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)]" />
+                <div className="overflow-hidden">
+                  <h3 className="font-extrabold text-white text-base truncate">{displayName}</h3>
+                  <p className="text-xs text-gray-400 truncate"><FaEnvelope className="inline mr-1 text-red-500" />{userEmail}</p>
+                </div>
               </div>
-              {link.label}
-            </Link>
-          ))}
+            ) : (
+              <div className="bg-red-900/20 border border-red-900/30 rounded-2xl p-4 text-center">
+                <p className="text-sm text-gray-300 mb-3">Masuk untuk menyimpan watchlist dan progres menonton anime.</p>
+                <Link to="/auth" onClick={() => setIsProfileOpen(false)} className="btn-primary py-2 px-6 rounded-xl text-sm w-full block">
+                  Masuk / Daftar
+                </Link>
+              </div>
+            )}
 
-          {/* Tombol Gacha Mobile */}
-          <button
-            onClick={() => {
-              setIsMobileMenuOpen(false);
-              setIsRandomizerOpen(true);
-            }}
-            className="flex items-center gap-4 px-4 py-3 rounded-xl font-bold text-amber-400 bg-amber-950/30 border border-amber-500/40 hover:bg-amber-900/40 transition-colors text-left cursor-pointer"
-          >
-            <div className="text-amber-400">
-              <FaDice size={18} />
+            {/* Profile Action Links */}
+            {user && (
+              <div className="flex flex-col gap-2">
+                <Link to="/profile" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 bg-black/40 hover:bg-white/5 p-3 rounded-xl border border-white/5 transition-colors">
+                  <div className="bg-red-900/40 text-red-400 p-2 rounded-lg"><FaUser size={14} /></div>
+                  <span className="text-sm font-bold text-gray-200">Dasbor Profil</span>
+                </Link>
+                <Link to="/watchlist" onClick={() => setIsProfileOpen(false)} className="flex items-center justify-between bg-black/40 hover:bg-white/5 p-3 rounded-xl border border-white/5 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-red-900/40 text-red-400 p-2 rounded-lg"><FaBookmark size={14} /></div>
+                    <span className="text-sm font-bold text-gray-200">Watchlist Saya</span>
+                  </div>
+                  <span className="text-xs font-black text-white bg-red-600 px-2.5 py-1 rounded-lg">{watchlistCount}</span>
+                </Link>
+              </div>
+            )}
+
+            <div className="h-px bg-white/10 my-1 w-full"></div>
+
+            {/* Extra Menu Links */}
+            <div className="grid grid-cols-2 gap-3">
+              {MobileExtraLinks.map((link, idx) => (
+                <Link key={idx} to={link.to} onClick={() => setIsProfileOpen(false)} className="bg-black/40 hover:bg-white/5 border border-white/5 rounded-xl p-3 flex flex-col items-center justify-center gap-2 transition-colors">
+                  <div className="text-gray-400 text-lg">{link.icon}</div>
+                  <span className="text-[10px] font-bold text-gray-300 text-center">{link.label}</span>
+                </Link>
+              ))}
             </div>
-            <span>🎲 Gacha Anime (Randomizer)</span>
-          </button>
 
-          {!user && (
-            <Link
-              to="/auth"
-              onClick={handleLinkClick}
-              className="mt-4 bg-gradient-to-r from-red-700 to-red-600 text-white text-center px-4 py-3 rounded-xl font-bold shadow-lg shadow-red-900/50"
-            >
-              Masuk / Daftar
-            </Link>
-          )}
+            {/* Logout Button */}
+            {user && (
+              <button onClick={handleLogoutClick} className="w-full flex items-center justify-center gap-2 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-900/50 p-3 rounded-xl mt-2 transition-colors font-bold text-sm">
+                <FaSignOutAlt /> Keluar Akun
+              </button>
+            )}
+            
+            {/* Safe Area spacing */}
+            <div className="h-4"></div>
+          </div>
         </div>
       </div>
 
@@ -518,7 +618,7 @@ const Navbar = () => {
         isOpen={isRandomizerOpen}
         onClose={() => setIsRandomizerOpen(false)}
       />
-    </nav>
+    </>
   );
 };
 

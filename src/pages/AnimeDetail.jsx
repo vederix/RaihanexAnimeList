@@ -103,6 +103,11 @@ const AnimeDetail = () => {
 
   // STATE ULASAN & FITUR KOMUNITAS
   const [reviews, setReviews] = useState([]);
+  const [reviewsPage, setReviewsPage] = useState(1);
+  const [hasMoreReviews, setHasMoreReviews] = useState(false);
+  const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
+  const REVIEWS_PER_PAGE = 20;
+
   const [reviewInput, setReviewInput] = useState("");
   const [isSpoilerInput, setIsSpoilerInput] = useState(false);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -123,18 +128,43 @@ const AnimeDetail = () => {
   const [showShareCard, setShowShareCard] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
 
-  const fetchReviews = useCallback(async (animeId) => {
+  const fetchReviews = useCallback(async (animeId, pageNum = 1) => {
     try {
-      const { data, error } = await supabase
+      const from = (pageNum - 1) * REVIEWS_PER_PAGE;
+      const to = from + REVIEWS_PER_PAGE - 1;
+
+      const { data, error, count } = await supabase
         .from("reviews")
-        .select("*")
-        .eq("mal_id", animeId);
+        .select("*", { count: "exact" })
+        .eq("anilist_id", animeId)
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
       if (error) throw error;
-      setReviews(data || []);
+      
+      if (pageNum === 1) {
+        setReviews(data || []);
+      } else {
+        setReviews((prev) => {
+          const existingIds = new Set(prev.map((r) => r.id));
+          const filtered = (data || []).filter((r) => !existingIds.has(r.id));
+          return [...prev, ...filtered];
+        });
+      }
+
+      setHasMoreReviews((count || 0) > pageNum * REVIEWS_PER_PAGE);
+      setReviewsPage(pageNum);
     } catch (err) {
       console.error("Gagal memuat ulasan:", err);
     }
   }, []);
+
+  const handleLoadMoreReviews = async () => {
+    if (isLoadingMoreReviews || !anime?.id) return;
+    setIsLoadingMoreReviews(true);
+    await fetchReviews(anime.id, reviewsPage + 1);
+    setIsLoadingMoreReviews(false);
+  };
 
   const checkWatchlistStatus = useCallback(
     async (animeId) => {
@@ -147,7 +177,7 @@ const AnimeDetail = () => {
           .from("watchlist")
           .select("id, status_tontonan, rating_pribadi, episodes_watched, total_episodes")
           .eq("user_id", user.id)
-          .eq("mal_id", animeId)
+          .eq("anilist_id", animeId)
           .maybeSingle();
 
         if (error) console.error("Gagal mengecek status watchlist:", error);
@@ -225,7 +255,7 @@ const AnimeDetail = () => {
       const { error } = await supabase.from("watchlist").insert([
         {
           user_id: user.id,
-          mal_id: anime.id,
+          anilist_id: anime.id,
           title: anime.title?.romaji || anime.title?.english || "Anime",
           image_url: anime.coverImage?.large || "",
           score: anime.averageScore ? anime.averageScore / 10 : 0,
@@ -255,7 +285,7 @@ const AnimeDetail = () => {
         .from("watchlist")
         .update({ status_tontonan: newStatus })
         .eq("user_id", user.id)
-        .eq("mal_id", anime.id);
+        .eq("anilist_id", anime.id);
 
       if (error) throw error;
       setWatchlistStatus(newStatus);
@@ -272,7 +302,7 @@ const AnimeDetail = () => {
         .from("watchlist")
         .update({ rating_pribadi: newRating })
         .eq("user_id", user.id)
-        .eq("mal_id", anime.id);
+        .eq("anilist_id", anime.id);
 
       if (error) throw error;
       setUserRating(newRating);
@@ -290,7 +320,7 @@ const AnimeDetail = () => {
         .from("watchlist")
         .update({ episodes_watched: newEpisodes })
         .eq("user_id", user.id)
-        .eq("mal_id", anime.id);
+        .eq("anilist_id", anime.id);
 
       if (error) throw error;
       setEpisodesWatched(newEpisodes);
@@ -312,7 +342,7 @@ const AnimeDetail = () => {
             .from("watchlist")
             .delete()
             .eq("user_id", user.id)
-            .eq("mal_id", anime.id);
+            .eq("anilist_id", anime.id);
 
           if (error) throw error;
           setIsInWatchlist(false);
@@ -368,7 +398,7 @@ const AnimeDetail = () => {
     try {
       const newReview = {
         user_id: user.id,
-        mal_id: anime.id,
+        anilist_id: anime.id,
         user_email: user.email,
         user_name: displayName,
         anime_title: anime.title?.romaji || anime.title?.english || "Anime",
@@ -401,7 +431,7 @@ const AnimeDetail = () => {
     try {
       const newReply = {
         user_id: user.id,
-        mal_id: anime.id,
+        anilist_id: anime.id,
         user_email: user.email,
         user_name: displayName,
         anime_title: anime.title?.romaji || anime.title?.english || "Anime",
@@ -429,7 +459,13 @@ const AnimeDetail = () => {
 
   const executeDeleteReview = async (reviewId) => {
     try {
-      await supabase.from("reviews").delete().eq("parent_id", reviewId);
+      // Coba hapus balasan jika ada izin (jika RLS membatasi, fallback ke penghapusan ulasan induk/cascade)
+      try {
+        await supabase.from("reviews").delete().eq("parent_id", reviewId);
+      } catch (replyErr) {
+        console.warn("Cascade delete balasan diabaikan:", replyErr);
+      }
+
       const { error } = await supabase
         .from("reviews")
         .delete()
@@ -496,12 +532,14 @@ const AnimeDetail = () => {
         .update({ liked_by: newLikes })
         .eq("id", reviewId);
       if (error) throw error;
-    } catch {
+    } catch (err) {
+      console.error("Gagal update like ulasan:", err);
       setReviews((prev) =>
         prev.map((r) =>
           r.id === reviewId ? { ...r, liked_by: likesArray } : r,
         ),
       );
+      toast.error("Gagal memperbarui like ulasan.");
     }
   };
 
@@ -534,15 +572,31 @@ const AnimeDetail = () => {
 
   if (isLoading)
     return (
-      <div className="flex justify-center items-center min-h-screen">
+      <div className="flex justify-center items-center min-h-[60vh]">
         <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.8)]"></div>
       </div>
     );
 
   if (!anime)
     return (
-      <div className="text-center mt-32 text-gray-400 font-bold text-xl">
-        Anime tidak ditemukan.
+      <div className="min-h-[60vh] flex items-center justify-center py-12 px-4">
+        <div className="glass-card p-8 sm:p-12 rounded-3xl text-center max-w-md w-full mx-auto shadow-[0_20px_40px_rgba(0,0,0,0.5)] animate-fade-in border border-red-500/30">
+          <span className="text-5xl mb-4 block">🔍</span>
+          <h2 className="text-2xl font-black text-white mb-2 tracking-tight">
+            Anime Tidak Ditemukan
+          </h2>
+          <p className="text-zinc-400 text-sm mb-6">
+            Data anime dengan ID ini tidak tersedia atau telah dihapus dari database AniList.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Link
+              to="/search"
+              className="btn-primary py-2.5 px-6 text-sm shadow-[0_0_20px_rgba(220,38,38,0.3)]"
+            >
+              Cari Anime Lain
+            </Link>
+          </div>
+        </div>
       </div>
     );
 
@@ -562,7 +616,7 @@ const AnimeDetail = () => {
     return (
       <div
         key={review.id}
-        className={`${isReply ? "ml-8 sm:ml-12 mt-3 border-l-2 border-red-900/40 pl-4" : "bg-[#1a0505]/40 backdrop-blur-md border border-red-900/30 rounded-2xl p-5 sm:p-6 shadow-[0_10px_30px_rgba(0,0,0,0.3)]"} transition-all hover:border-red-500/50 relative group`}
+        className={`${isReply ? "ml-8 sm:ml-12 mt-3 border-l-2 border-red-900/40 pl-4" : "glass-card p-5 sm:p-6 shadow-[0_10px_30px_rgba(0,0,0,0.3)]"} transition-all hover:border-red-500/50 relative group`}
       >
         {isOwner && !isEditing && (
           <div
@@ -614,12 +668,12 @@ const AnimeDetail = () => {
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full bg-[#0a0202]/80 text-white border border-blue-500/50 rounded-xl p-3 min-h-[80px] outline-none focus:border-blue-400 transition-colors resize-none text-sm mb-2 shadow-inner"
+                  className="w-full input-field p-3 min-h-[80px] resize-none text-sm mb-2 shadow-inner"
                 />
                 <div className="flex gap-2 justify-end">
                   <button
                     onClick={() => setEditingReviewId(null)}
-                    className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-800 text-gray-300 hover:bg-slate-700 transition-colors cursor-pointer"
+                    className="btn-secondary px-4 py-2 text-xs"
                   >
                     Batal
                   </button>
@@ -737,7 +791,7 @@ const AnimeDetail = () => {
 
         <button
           onClick={() => navigate(-1)}
-          className="absolute top-8 left-4 md:left-8 inline-flex items-center gap-2 text-white bg-black/40 backdrop-blur-md px-5 py-2.5 rounded-full hover:bg-red-600 transition-all font-bold border border-white/10 hover:border-red-400 shadow-xl z-10 group cursor-pointer"
+          className="absolute top-8 left-4 md:left-8 btn-secondary px-5 py-2.5 z-10 group"
         >
           <FaArrowLeft className="group-hover:-translate-x-1 transition-transform" />{" "}
           Kembali
@@ -766,7 +820,7 @@ const AnimeDetail = () => {
             {/* INTERACTIVE WATCHLIST CONTROLLER */}
             <div className="flex flex-col gap-3">
               {isInWatchlist ? (
-                <div className="bg-[#1a0505]/80 backdrop-blur-xl border border-red-900/50 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
+                <div className="glass-card p-4 shadow-xl flex flex-col gap-3">
                   <div className="flex items-center justify-between border-b border-red-900/30 pb-2">
                     <span className="text-xs font-black uppercase text-red-400 tracking-wider flex items-center gap-1.5">
                       <FaCheck className="text-green-400" /> Di Watchlist
@@ -792,7 +846,7 @@ const AnimeDetail = () => {
                     <select
                       value={watchlistStatus}
                       onChange={(e) => handleUpdateStatus(e.target.value)}
-                      className="w-full bg-black/70 text-white border border-red-900/50 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-red-500 transition-colors cursor-pointer"
+                      className="w-full input-field px-3 py-2 text-xs font-semibold cursor-pointer"
                     >
                       <option value="Plan to Watch">Plan to Watch</option>
                       <option value="Watching">Watching</option>
@@ -810,7 +864,7 @@ const AnimeDetail = () => {
                       onChange={(e) =>
                         handleUpdateRating(parseInt(e.target.value, 10))
                       }
-                      className="w-full bg-black/70 text-white border border-red-900/50 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-red-500 transition-colors cursor-pointer"
+                      className="w-full input-field px-3 py-2 text-xs font-semibold cursor-pointer"
                     >
                       <option value="0">Belum Dinilai</option>
                       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
@@ -861,7 +915,7 @@ const AnimeDetail = () => {
                 <button
                   onClick={handleAddToWatchlist}
                   disabled={isProcessingWatchlist}
-                  className="w-full py-3.5 rounded-xl font-bold transition-all duration-300 shadow-lg flex items-center justify-center gap-2 border bg-gradient-to-r from-red-700 to-red-600 text-white border-red-500/50 hover:to-red-500 hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-1 cursor-pointer"
+                  className="w-full btn-primary py-3.5 shadow-[0_0_20px_rgba(220,38,38,0.4)]"
                 >
                   {isProcessingWatchlist ? (
                     <span className="animate-pulse">Memproses...</span>
@@ -884,7 +938,7 @@ const AnimeDetail = () => {
                   </button>
                   <button
                     onClick={() => setShowShareCard(true)}
-                    className="flex-1 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/60 text-gray-300 border-red-900/40 hover:bg-red-900/40 hover:border-red-500/50 hover:text-white text-sm cursor-pointer"
+                    className="flex-1 btn-secondary py-3 text-sm"
                     title="Buat Kartu Gambar"
                   >
                     Kartu Visual
@@ -895,7 +949,7 @@ const AnimeDetail = () => {
                     if (!user) return toast.error("Kamu harus login dulu!");
                     setShowCollectionModal(true);
                   }}
-                  className="w-full py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/60 text-gray-300 border-red-900/40 hover:bg-red-900/40 hover:border-red-500/50 hover:text-white text-sm cursor-pointer"
+                  className="w-full btn-secondary py-3 text-sm"
                 >
                   <FaLayerGroup /> Tambahkan ke Koleksi
                 </button>
@@ -903,7 +957,7 @@ const AnimeDetail = () => {
             </div>
 
             {/* Detailed Info Table Glassmorphism */}
-            <div className="bg-[#1a0505]/60 backdrop-blur-xl rounded-[2rem] p-6 border border-red-900/40 shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex flex-col gap-4">
+            <div className="glass-card p-6 shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex flex-col gap-4">
               <h4 className="text-white font-bold flex items-center gap-2 mb-2 border-b border-red-900/30 pb-3 uppercase tracking-wider text-sm">
                 <FaInfoCircle className="text-red-500" /> Informasi Teknis
               </h4>
@@ -949,7 +1003,7 @@ const AnimeDetail = () => {
 
             {/* NEXT AIRING EPISODE & REMINDER WIDGET */}
             {anime.nextAiringEpisode && (
-              <div className="bg-gradient-to-br from-red-950/80 via-[#1a0505] to-black/90 backdrop-blur-xl rounded-[2rem] p-6 border border-red-500/40 shadow-[0_10px_30px_rgba(220,38,38,0.25)] flex flex-col gap-4 animate-fade-in">
+              <div className="glass-card p-6 border-red-500/40 shadow-[0_10px_30px_rgba(220,38,38,0.25)] flex flex-col gap-4 animate-fade-in border-t border-red-900/50">
                 <div className="flex items-center gap-2 text-red-400 font-black text-sm uppercase tracking-wider">
                   <FaBell className="animate-bounce" /> Jadwal Tayang Berikutnya
                 </div>
@@ -1041,7 +1095,7 @@ const AnimeDetail = () => {
                 ))}
               </div>
 
-              <div className="bg-[#1a0505]/40 backdrop-blur-md border border-red-900/30 p-6 sm:p-8 rounded-[2rem] shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+              <div className="glass-card p-6 sm:p-8 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
                 <div
                   className="text-gray-300/90 text-sm sm:text-base leading-relaxed prose prose-invert prose-p:mb-4 prose-a:text-red-400 hover:prose-a:text-red-300 max-w-none text-justify"
                   dangerouslySetInnerHTML={{
@@ -1073,7 +1127,7 @@ const AnimeDetail = () => {
                     <Link
                       to={`/anime/${relation.node.id}`}
                       key={`${relation.node.id}-${idx}`}
-                      className="bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/30 rounded-2xl p-3 flex gap-4 hover:bg-red-900/20 hover:border-red-500/50 hover:-translate-y-1 transition-all shadow-lg group"
+                      className="glass-card glass-card-hover p-3 flex gap-4 shadow-lg group"
                     >
                       <div className="w-16 sm:w-20 flex-shrink-0 rounded-lg overflow-hidden relative border border-red-900/40 aspect-[3/4]">
                         <img
@@ -1149,7 +1203,7 @@ const AnimeDetail = () => {
                       <button
                         key={`${char.id}-${index}`}
                         onClick={() => setSelectedCharacter(edge)}
-                        className="w-full text-left bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/30 rounded-2xl p-3 flex justify-between items-center transition-all hover:border-red-500/40 hover:bg-red-900/10 shadow-lg group cursor-pointer"
+                        className="w-full text-left glass-card glass-card-hover p-3 flex justify-between items-center shadow-lg group cursor-pointer"
                       >
                         <div className="flex items-center gap-3 w-1/2">
                           <img
@@ -1237,7 +1291,7 @@ const AnimeDetail = () => {
               {user ? (
                 <form
                   onSubmit={handleSubmitReview}
-                  className="bg-[#1a0505]/80 backdrop-blur-2xl border border-red-900/50 p-6 rounded-[2rem] mb-12 shadow-[0_20px_40px_rgba(0,0,0,0.4)] relative overflow-hidden group/form"
+                  className="glass-card p-6 mb-12 shadow-[0_20px_40px_rgba(0,0,0,0.4)] relative overflow-hidden group/form animate-scale-up"
                 >
                   <div className="absolute top-0 left-0 w-1 bg-red-600 h-full"></div>
 
@@ -1245,7 +1299,7 @@ const AnimeDetail = () => {
                     value={reviewInput}
                     onChange={(e) => setReviewInput(e.target.value)}
                     placeholder="Tuliskan pendapat epikmu tentang anime ini..."
-                    className="w-full bg-black/50 text-white border border-red-900/40 rounded-xl p-5 min-h-[140px] outline-none focus:border-red-500/80 transition-all resize-none text-sm md:text-base shadow-inner placeholder-gray-600"
+                    className="w-full input-field p-5 min-h-[140px] resize-none text-sm md:text-base shadow-inner placeholder-gray-600"
                   ></textarea>
 
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6">
@@ -1264,7 +1318,7 @@ const AnimeDetail = () => {
                     <button
                       type="submit"
                       disabled={isSubmittingReview || !reviewInput.trim()}
-                      className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:from-slate-800 disabled:to-black text-white px-8 py-3.5 rounded-xl font-bold flex items-center justify-center gap-3 shadow-[0_10px_20px_rgba(220,38,38,0.3)] transition-all hover:-translate-y-1 disabled:opacity-50 disabled:shadow-none disabled:transform-none cursor-pointer"
+                      className="btn-primary px-8 py-3.5 shadow-[0_10px_20px_rgba(220,38,38,0.3)] disabled:opacity-50 disabled:shadow-none disabled:transform-none"
                     >
                       {isSubmittingReview ? (
                         <span className="animate-pulse">Mengirim...</span>
@@ -1277,7 +1331,7 @@ const AnimeDetail = () => {
                   </div>
                 </form>
               ) : (
-                <div className="bg-gradient-to-br from-red-950/40 to-black/60 border border-red-900/40 p-10 rounded-[2rem] mb-12 text-center backdrop-blur-xl shadow-lg relative overflow-hidden">
+                <div className="glass-card p-10 mb-12 text-center shadow-lg relative overflow-hidden animate-scale-up border-t border-red-900/50">
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-red-900/20 text-9xl pointer-events-none">
                     <FaComments />
                   </div>
@@ -1309,9 +1363,27 @@ const AnimeDetail = () => {
                     </p>
                   </div>
                 ) : (
-                  sortedMainReviews.map((review) =>
-                    renderReviewBox(review, false),
-                  )
+                  <>
+                    {sortedMainReviews.map((review) =>
+                      renderReviewBox(review, false),
+                    )}
+
+                    {hasMoreReviews && (
+                      <div className="flex justify-center mt-6">
+                        <button
+                          onClick={handleLoadMoreReviews}
+                          disabled={isLoadingMoreReviews}
+                          className="btn-secondary px-8 py-3 text-sm font-bold flex items-center gap-2 cursor-pointer active:scale-95 shadow-md"
+                        >
+                          {isLoadingMoreReviews ? (
+                            <span className="animate-pulse">Memuat Ulasan...</span>
+                          ) : (
+                            "Muat Lebih Banyak Ulasan ↓"
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
