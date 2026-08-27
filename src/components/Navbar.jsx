@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 import {
   FaSignOutAlt,
@@ -33,7 +34,7 @@ const LIVE_SEARCH_QUERY = `
 `;
 
 const Navbar = () => {
-  const [user, setUser] = useState(null);
+  const { user, logout, displayName, avatarUrl } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,41 +53,39 @@ const Navbar = () => {
   const searchContainerRef = useRef(null);
   const profileRef = useRef(null);
 
+  // Fetch watchlist count
   useEffect(() => {
-    supabase.auth
-      .getSession()
-      .then(({ data: { session } }) => setUser(session?.user ?? null));
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) =>
-      setUser(session?.user ?? null),
-    );
-    return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
+    let isMounted = true;
     const fetchWatchlistCount = async () => {
       if (user) {
         const { count, error } = await supabase
           .from("watchlist")
           .select("*", { count: "exact", head: true })
           .eq("user_id", user.id);
-        if (!error) setWatchlistCount(count || 0);
+        if (!error && isMounted) setWatchlistCount(count || 0);
+      } else {
+        if (isMounted) setWatchlistCount(0);
       }
     };
     fetchWatchlistCount();
+    return () => {
+      isMounted = false;
+    };
   }, [user, isProfileOpen]);
 
+  // Navbar scroll background effect
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Click outside to close menus
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (profileRef.current && !profileRef.current.contains(event.target))
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
         setIsProfileOpen(false);
+      }
       if (
         searchContainerRef.current &&
         !searchContainerRef.current.contains(event.target)
@@ -99,41 +98,55 @@ const Navbar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Debounced Live Search
   useEffect(() => {
-    setIsMobileMenuOpen(false);
-    setIsProfileOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (globalSearch.trim().length < 3) {
-      setLiveResults([]);
-      setIsLiveSearching(false);
+    const trimmed = globalSearch.trim();
+    if (trimmed.length < 3) {
       return;
     }
-    setIsLiveSearching(true);
+
+    let isCancelled = false;
     const delayDebounceFn = setTimeout(async () => {
+      setIsLiveSearching(true);
       try {
         const data = await fetchAniList(LIVE_SEARCH_QUERY, {
-          search: globalSearch,
+          search: trimmed,
         });
-        setLiveResults(data.Page.media || []);
-      } catch (error) {
-        console.error("Live search error:", error);
+        if (!isCancelled) {
+          setLiveResults(data?.Page?.media || []);
+        }
+      } catch (err) {
+        console.error("Live search error:", err);
       } finally {
-        setIsLiveSearching(false);
+        if (!isCancelled) {
+          setIsLiveSearching(false);
+        }
       }
     }, 500);
-    return () => clearTimeout(delayDebounceFn);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(delayDebounceFn);
+    };
   }, [globalSearch]);
+
+  const handleSearchInputChange = (e) => {
+    const value = e.target.value;
+    setGlobalSearch(value);
+    if (value.trim().length < 3) {
+      setLiveResults([]);
+      setIsLiveSearching(false);
+    }
+  };
 
   const executeLogout = async () => {
     try {
-      await supabase.auth.signOut();
+      await logout();
       toast.success("Berhasil keluar akun!", {
         style: { borderRadius: "10px", background: "#333", color: "#fff" },
       });
       navigate("/");
-    } catch (error) {
+    } catch {
       toast.error("Gagal logout.");
     }
   };
@@ -175,16 +188,20 @@ const Navbar = () => {
   const handleGlobalSearchSubmit = (e) => {
     e.preventDefault();
     if (globalSearch.trim()) {
-      navigate(`/search?q=${encodeURIComponent(globalSearch)}`);
+      navigate(`/search?q=${encodeURIComponent(globalSearch.trim())}`);
       setGlobalSearch("");
       setLiveResults([]);
       setIsSearchExpanded(false);
+      setIsMobileMenuOpen(false);
     }
   };
 
+  const handleLinkClick = () => {
+    setIsMobileMenuOpen(false);
+    setIsProfileOpen(false);
+  };
+
   const userEmail = user?.email || "User";
-  const username = userEmail.split("@")[0];
-  const avatarUrl = `https://ui-avatars.com/api/?name=${username}&background=dc2626&color=fff&size=128&bold=true`;
 
   const NavLinks = [
     { to: "/", icon: <FaHome size={18} />, label: "Beranda" },
@@ -205,6 +222,7 @@ const Navbar = () => {
         {/* LOGO KIRI */}
         <Link
           to="/"
+          onClick={handleLinkClick}
           className="text-2xl font-black tracking-tighter text-white group flex items-center gap-3 flex-shrink-0 z-50"
         >
           <div className="relative flex items-center justify-center w-10 h-10 bg-gradient-to-br from-red-600 to-red-900 rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.4)] group-hover:shadow-[0_0_30px_rgba(220,38,38,0.8)] transition-all duration-500 group-hover:scale-105">
@@ -225,6 +243,7 @@ const Navbar = () => {
             <div key={idx} className="relative group px-3 py-2">
               <Link
                 to={link.to}
+                onClick={handleLinkClick}
                 className={`text-gray-400 hover:text-red-400 transition-all duration-300 flex items-center justify-center ${location.pathname === link.to ? "text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" : ""}`}
               >
                 {link.icon}
@@ -261,7 +280,7 @@ const Navbar = () => {
                 type="text"
                 placeholder="Cari anime..."
                 value={globalSearch}
-                onChange={(e) => setGlobalSearch(e.target.value)}
+                onChange={handleSearchInputChange}
                 className={`bg-transparent text-white text-sm outline-none transition-all duration-500 placeholder-gray-500 h-10 ${isSearchExpanded || globalSearch ? "w-full ml-3 opacity-100" : "w-0 opacity-0"}`}
                 onBlur={() => !globalSearch && setIsSearchExpanded(false)}
               />
@@ -298,7 +317,7 @@ const Navbar = () => {
                 ))}
                 <button
                   type="submit"
-                  className="bg-gradient-to-r from-red-900/40 to-black/40 text-red-400 text-xs font-bold py-3 hover:from-red-800/50 transition-all text-center w-full"
+                  className="bg-gradient-to-r from-red-900/40 to-black/40 text-red-400 text-xs font-bold py-3 hover:from-red-800/50 transition-all text-center w-full cursor-pointer"
                 >
                   Lihat Semua Hasil
                 </button>
@@ -313,6 +332,7 @@ const Navbar = () => {
             <div className="flex items-center gap-4 relative" ref={profileRef}>
               <Link
                 to="/watchlist"
+                onClick={handleLinkClick}
                 className="hidden lg:flex items-center gap-2 text-gray-300 hover:text-white transition-colors text-sm font-medium group"
               >
                 <FaBookmark className="text-gray-400 group-hover:text-red-400 transition-colors drop-shadow-md" />
@@ -321,7 +341,7 @@ const Navbar = () => {
 
               <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center gap-2 bg-[#1a0505]/60 hover:bg-red-900/40 p-1 lg:pl-1 lg:pr-3 lg:py-1 rounded-full border border-red-900/30 hover:border-red-500/50 transition-all duration-300 shadow-lg"
+                className="flex items-center gap-2 bg-[#1a0505]/60 hover:bg-red-900/40 p-1 lg:pl-1 lg:pr-3 lg:py-1 rounded-full border border-red-900/30 hover:border-red-500/50 transition-all duration-300 shadow-lg cursor-pointer"
               >
                 <div className="relative">
                   <img
@@ -332,7 +352,7 @@ const Navbar = () => {
                   <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-[#0a0202] rounded-full"></div>
                 </div>
                 <span className="text-sm font-bold text-white hidden lg:block">
-                  {username}
+                  {displayName}
                 </span>
                 <FaChevronDown
                   size={10}
@@ -352,7 +372,7 @@ const Navbar = () => {
                   />
                   <div className="overflow-hidden">
                     <h3 className="font-extrabold text-white text-base truncate">
-                      {username}
+                      {displayName}
                     </h3>
                     <p className="text-xs text-gray-400 truncate mt-1">
                       <FaEnvelope className="inline mr-1 text-red-500" />
@@ -363,7 +383,7 @@ const Navbar = () => {
                 <div className="p-3">
                   <Link
                     to="/watchlist"
-                    onClick={() => setIsProfileOpen(false)}
+                    onClick={handleLinkClick}
                     className="bg-black/40 hover:bg-red-900/30 border border-red-900/20 rounded-xl p-3 mb-2 flex items-center justify-between transition-all group"
                   >
                     <div className="flex items-center gap-3">
@@ -380,14 +400,14 @@ const Navbar = () => {
                   </Link>
                   <Link
                     to="/profile"
-                    onClick={() => setIsProfileOpen(false)}
+                    onClick={handleLinkClick}
                     className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-300 hover:text-white hover:bg-red-900/30 rounded-xl transition-colors"
                   >
                     <FaUser className="text-gray-400" /> Dasbor Profil
                   </Link>
                   <button
                     onClick={handleLogoutClick}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-400 hover:text-white hover:bg-red-600 rounded-xl transition-all mt-1"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-400 hover:text-white hover:bg-red-600 rounded-xl transition-all mt-1 cursor-pointer"
                   >
                     <FaSignOutAlt /> Keluar Akun
                   </button>
@@ -397,6 +417,7 @@ const Navbar = () => {
           ) : (
             <Link
               to="/auth"
+              onClick={handleLinkClick}
               className="hidden lg:flex bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-2.5 rounded-full font-bold shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all"
             >
               Masuk
@@ -406,7 +427,7 @@ const Navbar = () => {
           {/* HAMBURGER BUTTON (MOBILE) */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden text-gray-300 hover:text-white bg-[#1a0505]/80 p-2.5 rounded-xl border border-red-900/40 focus:outline-none transition-colors"
+            className="lg:hidden text-gray-300 hover:text-white bg-[#1a0505]/80 p-2.5 rounded-xl border border-red-900/40 focus:outline-none transition-colors cursor-pointer"
           >
             {isMobileMenuOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
           </button>
@@ -425,7 +446,7 @@ const Navbar = () => {
               type="text"
               placeholder="Cari anime..."
               value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
+              onChange={handleSearchInputChange}
               className="w-full bg-black/60 border border-red-900/50 text-white rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-red-500"
             />
           </form>
@@ -434,7 +455,7 @@ const Navbar = () => {
             <Link
               key={idx}
               to={link.to}
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={handleLinkClick}
               className={`flex items-center gap-4 px-4 py-3 rounded-xl font-bold transition-colors ${location.pathname === link.to ? "bg-red-900/40 text-red-400" : "text-gray-300 hover:bg-black/50 hover:text-white"}`}
             >
               <div
@@ -453,7 +474,7 @@ const Navbar = () => {
           {!user && (
             <Link
               to="/auth"
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={handleLinkClick}
               className="mt-4 bg-gradient-to-r from-red-700 to-red-600 text-white text-center px-4 py-3 rounded-xl font-bold shadow-lg shadow-red-900/50"
             >
               Masuk / Daftar

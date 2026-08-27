@@ -60,7 +60,7 @@ const Search = () => {
   // State Pencarian Utama
   const [query, setQuery] = useState(urlQuery);
   const [searchResults, setSearchResults] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
 
   // State Filter Lanjutan
@@ -75,70 +75,88 @@ const Search = () => {
   const [hasNextPage, setHasNextPage] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
-  // Jalankan pencarian jika URL param berubah (misal dari Navbar)
+  // Jalankan pencarian jika URL param atau filter berubah
   useEffect(() => {
-    if (urlQuery !== query) {
-      setQuery(urlQuery);
-    }
-    setPage(1);
-    fetchSearchData(urlQuery, 1, { genre, format, season, year });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlQuery]);
+    let isCancelled = false;
 
-  const fetchSearchData = async (searchKeyword, pageNumber, filters) => {
-    try {
-      if (pageNumber === 1) setIsLoading(true);
-      else setIsFetchingMore(true);
-      setApiError(null);
+    const executeSearch = async () => {
+      try {
+        setApiError(null);
+        const variables = {
+          search: urlQuery || undefined,
+          page: 1,
+          genre: genre || undefined,
+          format: format || undefined,
+          season: season || undefined,
+          seasonYear: year ? parseInt(year, 10) : undefined,
+        };
 
-      const variables = {
-        search: searchKeyword || undefined,
-        page: pageNumber,
-        genre: filters.genre || undefined,
-        format: filters.format || undefined,
-        season: filters.season || undefined,
-        seasonYear: filters.year ? parseInt(filters.year) : undefined,
-      };
+        const data = await fetchAniList(SEARCH_QUERY, variables);
+        if (!isCancelled) {
+          setSearchResults(data?.Page?.media || []);
+          setHasNextPage(data?.Page?.pageInfo?.hasNextPage || false);
+          setPage(1);
+        }
+      } catch {
+        if (!isCancelled) {
+          setApiError("Gagal mengambil data dari server. Silakan coba lagi.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+          setIsFetchingMore(false);
+        }
+      }
+    };
 
-      const data = await fetchAniList(SEARCH_QUERY, variables);
-      const newAnimes = data?.Page?.media || [];
-      const hasNext = data?.Page?.pageInfo?.hasNextPage || false;
+    executeSearch();
 
-      if (pageNumber === 1) setSearchResults(newAnimes);
-      else setSearchResults((prev) => [...prev, ...newAnimes]);
-
-      setHasNextPage(hasNext);
-    } catch (error) {
-      setApiError("Gagal mengambil data dari server. Silakan coba lagi.");
-    } finally {
-      setIsLoading(false);
-      setIsFetchingMore(false);
-    }
-  };
+    return () => {
+      isCancelled = true;
+    };
+  }, [urlQuery, genre, format, season, year]);
 
   // Eksekusi ketika tombol Cari atau Enter ditekan
   const handleSearch = (e) => {
     e.preventDefault();
     setShowFilters(false);
+    setIsLoading(true);
     if (query.trim()) {
-      setSearchParams({ q: query }); // Update URL, akan memicu useEffect
+      setSearchParams({ q: query.trim() });
     } else {
       setSearchParams({});
-      setPage(1);
-      fetchSearchData("", 1, { genre, format, season, year });
     }
   };
 
   const applyFiltersAndSearch = () => {
     setShowFilters(false);
-    setPage(1);
-    fetchSearchData(query, 1, { genre, format, season, year });
+    setIsLoading(true);
   };
 
-  const handleLoadMore = () => {
+  const handleLoadMore = async () => {
     const nextPage = page + 1;
-    setPage(nextPage);
-    fetchSearchData(query, nextPage, { genre, format, season, year });
+    setIsFetchingMore(true);
+    try {
+      const variables = {
+        search: urlQuery || undefined,
+        page: nextPage,
+        genre: genre || undefined,
+        format: format || undefined,
+        season: season || undefined,
+        seasonYear: year ? parseInt(year, 10) : undefined,
+      };
+      const data = await fetchAniList(SEARCH_QUERY, variables);
+      const newAnimes = data?.Page?.media || [];
+      const hasNext = data?.Page?.pageInfo?.hasNextPage || false;
+
+      setSearchResults((prev) => [...prev, ...newAnimes]);
+      setHasNextPage(hasNext);
+      setPage(nextPage);
+    } catch {
+      setApiError("Gagal memuat lebih banyak anime.");
+    } finally {
+      setIsFetchingMore(false);
+    }
   };
 
   const clearFilters = () => {
@@ -146,6 +164,7 @@ const Search = () => {
     setFormat("");
     setSeason("");
     setYear("");
+    setIsLoading(true);
   };
 
   // Cek apakah ada filter yang aktif
@@ -186,7 +205,7 @@ const Search = () => {
               />
               <button
                 type="submit"
-                className="absolute right-2 top-2 bottom-2 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white w-12 rounded-full transition-all flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.4)] border border-red-400/30"
+                className="absolute right-2 top-2 bottom-2 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white w-12 rounded-full transition-all flex items-center justify-center shadow-[0_0_15px_rgba(220,38,38,0.4)] border border-red-400/30 cursor-pointer"
               >
                 <FaSearch />
               </button>
@@ -195,7 +214,7 @@ const Search = () => {
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}
-              className={`p-4 rounded-full border transition-all duration-300 shadow-lg flex-shrink-0 backdrop-blur-md ${
+              className={`p-4 rounded-full border transition-all duration-300 shadow-lg flex-shrink-0 backdrop-blur-md cursor-pointer ${
                 showFilters || isFilterActive
                   ? "bg-red-600 text-white border-red-400/50 shadow-[0_0_15px_rgba(220,38,38,0.5)]"
                   : "bg-black/50 text-red-300 border-red-900/40 hover:border-red-500 hover:bg-red-900/30 hover:text-white"
@@ -210,7 +229,7 @@ const Search = () => {
             className={`transition-all duration-500 ease-in-out origin-top w-full overflow-hidden absolute top-[105%] z-10 ${
               showFilters
                 ? "opacity-100 scale-y-100 max-h-[800px]"
-                : "opacity-0 scale-y-0 max-h-0"
+                : "opacity-0 scale-y-0 max-h-0 pointer-events-none"
             }`}
           >
             <div className="bg-[#1a0505]/95 backdrop-blur-3xl border border-red-900/50 p-6 md:p-8 rounded-3xl shadow-[0_30px_60px_rgba(0,0,0,0.8)] mt-3">
@@ -266,7 +285,7 @@ const Search = () => {
                           onClick={() =>
                             setFormat(format === f.value ? "" : f.value)
                           }
-                          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
+                          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border cursor-pointer ${
                             format === f.value
                               ? "bg-red-600 text-white border-red-400 shadow-[0_0_10px_rgba(220,38,38,0.5)]"
                               : "bg-black/40 text-gray-400 border-red-900/50 hover:border-red-500 hover:text-white"
@@ -288,7 +307,7 @@ const Search = () => {
                           key={g}
                           type="button"
                           onClick={() => setGenre(genre === g ? "" : g)}
-                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${
+                          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer ${
                             genre === g
                               ? "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-400 shadow-[0_0_10px_rgba(220,38,38,0.5)]"
                               : "bg-black/40 text-gray-400 border-red-900/50 hover:border-red-500 hover:text-white"
@@ -308,7 +327,7 @@ const Search = () => {
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="text-sm text-gray-400 hover:text-red-400 transition-colors font-bold"
+                    className="text-sm text-gray-400 hover:text-red-400 transition-colors font-bold cursor-pointer"
                   >
                     Reset Filter
                   </button>
@@ -316,7 +335,7 @@ const Search = () => {
                 <button
                   type="button"
                   onClick={applyFiltersAndSearch}
-                  className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] border border-red-500/50"
+                  className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] border border-red-500/50 cursor-pointer"
                 >
                   Terapkan Filter
                 </button>
@@ -348,8 +367,7 @@ const Search = () => {
             {/* Loading Skeletons */}
             {isLoading && page === 1
               ? [...Array(10)].map((_, i) => <SkeletonCard key={i} />)
-              : /* Actual Data */
-                searchResults.map((anime) => (
+              : searchResults.map((anime) => (
                   <AnimeCard key={anime.id} anime={anime} />
                 ))}
           </div>
@@ -361,7 +379,7 @@ const Search = () => {
             <button
               onClick={handleLoadMore}
               disabled={isFetchingMore}
-              className="bg-black/40 hover:bg-red-900/40 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-red-300 hover:text-white px-8 py-3.5 rounded-full transition-all shadow-[0_5px_20px_rgba(220,38,38,0.15)] font-bold flex items-center gap-2"
+              className="bg-black/40 hover:bg-red-900/40 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-red-300 hover:text-white px-8 py-3.5 rounded-full transition-all shadow-[0_5px_20px_rgba(220,38,38,0.15)] font-bold flex items-center gap-2 cursor-pointer"
             >
               {isFetchingMore ? (
                 <span className="animate-pulse">Memuat...</span>

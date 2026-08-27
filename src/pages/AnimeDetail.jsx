@@ -1,13 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { useAuth } from "../context/AuthContext";
 import { fetchAniList } from "../utils/anilist";
 import toast from "react-hot-toast";
 import {
   FaStar,
   FaArrowLeft,
-  FaCheck,
-  FaPlus,
   FaYoutube,
   FaUsers,
   FaComments,
@@ -26,6 +25,8 @@ import {
   FaTv,
   FaBook,
   FaBookmark,
+  FaPlay,
+  FaCheck,
 } from "react-icons/fa";
 
 // 1. QUERY ANILIST DIPERLUAS (Termasuk Relations)
@@ -75,12 +76,16 @@ const translateRelation = (type) => {
 const AnimeDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user, displayName } = useAuth();
+
   const [anime, setAnime] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [user, setUser] = useState(null);
+  // STATE WATCHLIST & TRACKER LENGKAP
   const [isInWatchlist, setIsInWatchlist] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [watchlistStatus, setWatchlistStatus] = useState("Plan to Watch");
+  const [userRating, setUserRating] = useState(0);
+  const [isProcessingWatchlist, setIsProcessingWatchlist] = useState(false);
 
   // STATE ULASAN & FITUR KOMUNITAS
   const [reviews, setReviews] = useState([]);
@@ -99,43 +104,7 @@ const AnimeDetail = () => {
   const [sortBy, setSortBy] = useState("terbaru");
   const [revealedSpoilers, setRevealedSpoilers] = useState([]);
 
-  useEffect(() => {
-    const fetchAnimeAndUser = async () => {
-      setIsLoading(true);
-      try {
-        const data = await fetchAniList(DETAIL_QUERY, { id: parseInt(id) });
-        const animeData = data.Media;
-        setAnime(animeData);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const currentUser = session?.user;
-        setUser(currentUser);
-
-        if (currentUser) {
-          const { data: watchlistData } = await supabase
-            .from("watchlist")
-            .select("*")
-            .eq("user_id", currentUser.id)
-            .eq("mal_id", animeData.id)
-            .maybeSingle();
-          if (watchlistData) setIsInWatchlist(true);
-        }
-
-        fetchReviews(animeData.id);
-      } catch (error) {
-        console.error("Gagal memuat data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchAnimeAndUser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  const fetchReviews = async (animeId) => {
+  const fetchReviews = useCallback(async (animeId) => {
     try {
       const { data, error } = await supabase
         .from("reviews")
@@ -143,18 +112,182 @@ const AnimeDetail = () => {
         .eq("mal_id", animeId);
       if (error) throw error;
       setReviews(data || []);
-    } catch (error) {
-      console.error("Gagal memuat ulasan:", error);
+    } catch (err) {
+      console.error("Gagal memuat ulasan:", err);
+    }
+  }, []);
+
+  const checkWatchlistStatus = useCallback(
+    async (animeId) => {
+      if (!user) {
+        setIsInWatchlist(false);
+        return;
+      }
+      try {
+        const { data } = await supabase
+          .from("watchlist")
+          .select("id, status_tontonan, rating_pribadi")
+          .eq("user_id", user.id)
+          .eq("mal_id", animeId)
+          .maybeSingle();
+
+        if (data) {
+          setIsInWatchlist(true);
+          setWatchlistStatus(data.status_tontonan || "Plan to Watch");
+          setUserRating(data.rating_pribadi || 0);
+        } else {
+          setIsInWatchlist(false);
+          setWatchlistStatus("Plan to Watch");
+          setUserRating(0);
+        }
+      } catch (err) {
+        console.error("Gagal cek status watchlist:", err);
+      }
+    },
+    [user],
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchAnime = async () => {
+      try {
+        const parsedId = parseInt(id, 10);
+        if (isNaN(parsedId)) {
+          if (!isCancelled) setIsLoading(false);
+          return;
+        }
+
+        const data = await fetchAniList(DETAIL_QUERY, { id: parsedId });
+        const animeData = data?.Media;
+        if (!isCancelled) {
+          setAnime(animeData);
+        }
+
+        if (animeData?.title?.romaji) {
+          document.title = `${animeData.title.romaji} - RAIHANEX`;
+        }
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+
+        if (animeData?.id && !isCancelled) {
+          fetchReviews(animeData.id);
+          checkWatchlistStatus(animeData.id);
+        }
+      } catch (error) {
+        console.error("Gagal memuat detail anime:", error);
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchAnime();
+
+    return () => {
+      isCancelled = true;
+      document.title = "RAIHANEX - Anime List & Tracker";
+    };
+  }, [id, fetchReviews, checkWatchlistStatus]);
+
+  // --- KONTROL TRACKER & WATCHLIST ---
+  const handleAddToWatchlist = async () => {
+    if (!user) {
+      toast.error("Kamu harus login dulu!", {
+        style: { background: "#333", color: "#fff", borderRadius: "10px" },
+      });
+      return navigate("/auth");
+    }
+    setIsProcessingWatchlist(true);
+    try {
+      const { error } = await supabase.from("watchlist").insert([
+        {
+          user_id: user.id,
+          mal_id: anime.id,
+          title: anime.title?.romaji || anime.title?.english || "Anime",
+          image_url: anime.coverImage?.large || "",
+          score: anime.averageScore ? anime.averageScore / 10 : 0,
+          status_tontonan: "Plan to Watch",
+          rating_pribadi: 0,
+        },
+      ]);
+      if (error) throw error;
+      setIsInWatchlist(true);
+      setWatchlistStatus("Plan to Watch");
+      setUserRating(0);
+      toast.success("Ditambahkan ke Watchlist!");
+    } catch {
+      toast.error("Gagal menambahkan ke Watchlist.");
+    } finally {
+      setIsProcessingWatchlist(false);
     }
   };
 
-  // --- LOGIKA DATABASE & KOMUNITAS ---
+  const handleUpdateStatus = async (newStatus) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from("watchlist")
+        .update({ status_tontonan: newStatus })
+        .eq("user_id", user.id)
+        .eq("mal_id", anime.id);
+
+      if (error) throw error;
+      setWatchlistStatus(newStatus);
+      toast.success(`Status diubah: ${newStatus}`);
+    } catch {
+      toast.error("Gagal mengubah status.");
+    }
+  };
+
+  const handleUpdateRating = async (newRating) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase
+        .from("watchlist")
+        .update({ rating_pribadi: newRating })
+        .eq("user_id", user.id)
+        .eq("mal_id", anime.id);
+
+      if (error) throw error;
+      setUserRating(newRating);
+      toast.success("Rating pribadimu disimpan!");
+    } catch {
+      toast.error("Gagal menyimpan rating.");
+    }
+  };
+
+  const handleRemoveFromWatchlist = async () => {
+    if (!user) return;
+    setIsProcessingWatchlist(true);
+    try {
+      const { error } = await supabase
+        .from("watchlist")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("mal_id", anime.id);
+
+      if (error) throw error;
+      setIsInWatchlist(false);
+      setWatchlistStatus("Plan to Watch");
+      setUserRating(0);
+      toast.success("Dihapus dari Watchlist!");
+    } catch {
+      toast.error("Gagal menghapus dari Watchlist.");
+    } finally {
+      setIsProcessingWatchlist(false);
+    }
+  };
+
+  // --- LOGIKA ULASAN & KOMUNITAS ---
   const handleSubmitReview = async (e) => {
     e.preventDefault();
-    if (!user)
+    if (!user) {
       return toast.error("Kamu harus login dulu!", {
         style: { background: "#333", color: "#fff", borderRadius: "10px" },
       });
+    }
     if (!reviewInput.trim()) return toast.error("Ulasan tidak boleh kosong!");
     setIsSubmittingReview(true);
     try {
@@ -162,6 +295,7 @@ const AnimeDetail = () => {
         user_id: user.id,
         mal_id: anime.id,
         user_email: user.email,
+        user_name: displayName,
         content: reviewInput.trim(),
         liked_by: [],
         is_spoiler: isSpoilerInput,
@@ -176,7 +310,7 @@ const AnimeDetail = () => {
       setReviewInput("");
       setIsSpoilerInput(false);
       toast.success("Ulasan berhasil diposting!");
-    } catch (error) {
+    } catch {
       toast.error("Gagal mengirim ulasan.");
     } finally {
       setIsSubmittingReview(false);
@@ -192,6 +326,7 @@ const AnimeDetail = () => {
         user_id: user.id,
         mal_id: anime.id,
         user_email: user.email,
+        user_name: displayName,
         content: replyInput.trim(),
         liked_by: [],
         is_spoiler: false,
@@ -206,7 +341,7 @@ const AnimeDetail = () => {
       setReplyingTo(null);
       setReplyInput("");
       toast.success("Balasan terkirim!");
-    } catch (error) {
+    } catch {
       toast.error("Gagal mengirim balasan.");
     } finally {
       setIsSubmittingReply(false);
@@ -215,18 +350,20 @@ const AnimeDetail = () => {
 
   const executeDeleteReview = async (reviewId) => {
     try {
+      await supabase.from("reviews").delete().eq("parent_id", reviewId);
       const { error } = await supabase
         .from("reviews")
         .delete()
         .eq("id", reviewId)
         .eq("user_id", user.id);
+
       if (error) throw error;
       setReviews((prev) =>
         prev.filter((r) => r.id !== reviewId && r.parent_id !== reviewId),
       );
       toast.success("Ulasan dihapus.");
-    } catch (error) {
-      toast.error("Gagal menghapus.");
+    } catch {
+      toast.error("Gagal menghapus ulasan.");
     }
   };
 
@@ -246,13 +383,13 @@ const AnimeDetail = () => {
                 toast.dismiss(t.id);
                 executeDeleteReview(reviewId);
               }}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold w-full shadow-lg shadow-red-500/30 transition-all"
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold w-full shadow-lg shadow-red-500/30 transition-all cursor-pointer"
             >
               Hapus
             </button>
             <button
               onClick={() => toast.dismiss(t.id)}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-all"
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-all cursor-pointer"
             >
               Batal
             </button>
@@ -280,7 +417,7 @@ const AnimeDetail = () => {
       );
       toast.success("Ulasan diperbarui!");
       setEditingReviewId(null);
-    } catch (error) {
+    } catch {
       toast.error("Gagal memperbarui.");
     } finally {
       setIsUpdatingReview(false);
@@ -292,10 +429,9 @@ const AnimeDetail = () => {
     const likesArray = currentLikes || [];
     const hasLiked = likesArray.includes(user.id);
     const newLikes = hasLiked
-      ? likesArray.filter((id) => id !== user.id)
+      ? likesArray.filter((uId) => uId !== user.id)
       : [...likesArray, user.id];
 
-    // Optimistic UI update
     setReviews((prev) =>
       prev.map((r) => (r.id === reviewId ? { ...r, liked_by: newLikes } : r)),
     );
@@ -305,8 +441,7 @@ const AnimeDetail = () => {
         .update({ liked_by: newLikes })
         .eq("id", reviewId);
       if (error) throw error;
-    } catch (error) {
-      // Revert if failed
+    } catch {
       setReviews((prev) =>
         prev.map((r) =>
           r.id === reviewId ? { ...r, liked_by: likesArray } : r,
@@ -315,47 +450,10 @@ const AnimeDetail = () => {
     }
   };
 
-  const toggleWatchlist = async () => {
-    if (!user) {
-      toast.error("Kamu harus login dulu!", {
-        style: { background: "#333", color: "#fff", borderRadius: "10px" },
-      });
-      return navigate("/auth");
-    }
-    setIsProcessing(true);
-    try {
-      if (isInWatchlist) {
-        await supabase
-          .from("watchlist")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("mal_id", anime.id);
-        setIsInWatchlist(false);
-        toast.success("Dihapus dari Watchlist!");
-      } else {
-        await supabase.from("watchlist").insert([
-          {
-            user_id: user.id,
-            mal_id: anime.id,
-            title: anime.title.romaji || anime.title.english,
-            image_url: anime.coverImage.large,
-            score: anime.averageScore ? anime.averageScore / 10 : 0,
-          },
-        ]);
-        setIsInWatchlist(true);
-        toast.success("Ditambahkan ke Watchlist!");
-      }
-    } catch (error) {
-      toast.error("Terjadi kesalahan sistem.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   const handleShare = () => {
     const shareData = {
-      title: `Tonton ${anime.title.romaji} di RAIHANEX!`,
-      text: `Lihat info lengkap, jadwal, dan ulasan anime ${anime.title.romaji} di RAIHANEX.`,
+      title: `Tonton ${anime?.title?.romaji || "Anime"} di RAIHANEX!`,
+      text: `Lihat info lengkap, jadwal, dan ulasan anime ${anime?.title?.romaji || "Anime"} di RAIHANEX.`,
       url: window.location.href,
     };
     if (navigator.share) navigator.share(shareData).catch(() => {});
@@ -370,6 +468,7 @@ const AnimeDetail = () => {
     reviews
       .filter((r) => r.parent_id === parentId)
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
   const sortedMainReviews = [...mainReviews].sort((a, b) => {
     if (sortBy === "terbaru")
       return new Date(b.created_at) - new Date(a.created_at);
@@ -384,6 +483,7 @@ const AnimeDetail = () => {
         <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.8)]"></div>
       </div>
     );
+
   if (!anime)
     return (
       <div className="text-center mt-32 text-gray-400 font-bold text-xl">
@@ -393,8 +493,10 @@ const AnimeDetail = () => {
 
   // --- KOMPONEN RENDER ULASAN ---
   const renderReviewBox = (review, isReply = false) => {
-    const reviewerName = review.user_email.split("@")[0];
-    const avatar = `https://ui-avatars.com/api/?name=${reviewerName}&background=dc2626&color=fff&size=128&bold=true`;
+    const reviewerName =
+      review.user_name ||
+      (review.user_email ? review.user_email.split("@")[0] : "Pengguna");
+    const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(reviewerName)}&background=dc2626&color=fff&size=128&bold=true`;
     const isOwner = user && user.id === review.user_id;
     const isEditing = editingReviewId === review.id;
     const likesArray = review.liked_by || [];
@@ -416,14 +518,14 @@ const AnimeDetail = () => {
                 setEditingReviewId(review.id);
                 setEditContent(review.content);
               }}
-              className="text-gray-400 hover:text-blue-400 p-1.5 bg-black/50 rounded-lg backdrop-blur-sm border border-white/10"
+              className="text-gray-400 hover:text-blue-400 p-1.5 bg-black/50 rounded-lg backdrop-blur-sm border border-white/10 cursor-pointer"
               title="Edit"
             >
               <FaPen size={12} />
             </button>
             <button
               onClick={() => confirmDeleteReview(review.id)}
-              className="text-gray-400 hover:text-red-500 p-1.5 bg-black/50 rounded-lg backdrop-blur-sm border border-white/10"
+              className="text-gray-400 hover:text-red-500 p-1.5 bg-black/50 rounded-lg backdrop-blur-sm border border-white/10 cursor-pointer"
               title="Hapus"
             >
               <FaTrash size={12} />
@@ -462,14 +564,14 @@ const AnimeDetail = () => {
                 <div className="flex gap-2 justify-end">
                   <button
                     onClick={() => setEditingReviewId(null)}
-                    className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-800 text-gray-300 hover:bg-slate-700 transition-colors"
+                    className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-800 text-gray-300 hover:bg-slate-700 transition-colors cursor-pointer"
                   >
                     Batal
                   </button>
                   <button
                     onClick={() => handleUpdateReview(review.id)}
                     disabled={isUpdatingReview}
-                    className="px-4 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+                    className="px-4 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors cursor-pointer"
                   >
                     {isUpdatingReview ? "Menyimpan..." : "Simpan Perubahan"}
                   </button>
@@ -503,7 +605,7 @@ const AnimeDetail = () => {
             >
               <button
                 onClick={() => handleLikeReview(review.id, likesArray)}
-                className={`flex items-center gap-1.5 text-xs sm:text-sm font-bold transition-all ${hasLiked ? "text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" : "text-gray-500 hover:text-red-400"}`}
+                className={`flex items-center gap-1.5 text-xs sm:text-sm font-bold transition-all cursor-pointer ${hasLiked ? "text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" : "text-gray-500 hover:text-red-400"}`}
               >
                 {hasLiked ? (
                   <FaHeart className="scale-110 transition-transform" />
@@ -520,7 +622,7 @@ const AnimeDetail = () => {
                   onClick={() =>
                     setReplyingTo(replyingTo === review.id ? null : review.id)
                   }
-                  className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-500 hover:text-blue-400 transition-all"
+                  className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-500 hover:text-blue-400 transition-all cursor-pointer"
                 >
                   <FaReply /> <span>Balas</span>
                 </button>
@@ -540,14 +642,14 @@ const AnimeDetail = () => {
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setReplyingTo(null)}
-                      className="px-4 py-1.5 text-xs font-bold rounded-lg bg-slate-800 text-gray-400 hover:text-white transition-colors"
+                      className="px-4 py-1.5 text-xs font-bold rounded-lg bg-slate-800 text-gray-400 hover:text-white transition-colors cursor-pointer"
                     >
                       Batal
                     </button>
                     <button
                       onClick={() => handleSubmitReply(review.id)}
                       disabled={isSubmittingReply || !replyInput.trim()}
-                      className="px-4 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1 transition-colors shadow-[0_0_10px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:shadow-none"
+                      className="px-4 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1 transition-colors shadow-[0_0_10px_rgba(37,99,235,0.4)] disabled:opacity-50 disabled:shadow-none cursor-pointer"
                     >
                       <FaPaperPlane size={10} /> Kirim
                     </button>
@@ -580,7 +682,7 @@ const AnimeDetail = () => {
 
         <button
           onClick={() => navigate(-1)}
-          className="absolute top-8 left-4 md:left-8 inline-flex items-center gap-2 text-white bg-black/40 backdrop-blur-md px-5 py-2.5 rounded-full hover:bg-red-600 transition-all font-bold border border-white/10 hover:border-red-400 shadow-xl z-10 group"
+          className="absolute top-8 left-4 md:left-8 inline-flex items-center gap-2 text-white bg-black/40 backdrop-blur-md px-5 py-2.5 rounded-full hover:bg-red-600 transition-all font-bold border border-white/10 hover:border-red-400 shadow-xl z-10 group cursor-pointer"
         >
           <FaArrowLeft className="group-hover:-translate-x-1 transition-transform" />{" "}
           Kembali
@@ -589,13 +691,13 @@ const AnimeDetail = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-20 -mt-24 md:-mt-40">
         <div className="flex flex-col md:flex-row gap-8 lg:gap-12">
-          {/* 2. SIDEBAR KIRI (COVER, TOMBOL, INFO DETAIL) */}
+          {/* 2. SIDEBAR KIRI (COVER, CONTROLLER WATCHLIST, INFO DETAIL) */}
           <div className="w-full md:w-1/3 lg:w-1/4 flex flex-col gap-6 mx-auto md:mx-0 max-w-[280px] md:max-w-none">
             {/* Cover Image */}
             <div className="rounded-2xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.8)] border-2 border-red-900/50 relative group aspect-[2/3] bg-black">
               <img
-                src={anime.coverImage.extraLarge || anime.coverImage.large}
-                alt={anime.title.romaji}
+                src={anime.coverImage?.extraLarge || anime.coverImage?.large}
+                alt={anime.title?.romaji || "Poster"}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
               />
               <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-md border border-yellow-500/50 text-white font-black px-3 py-1.5 rounded-xl text-lg shadow-lg flex items-center gap-1.5">
@@ -606,28 +708,83 @@ const AnimeDetail = () => {
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* INTERACTIVE WATCHLIST CONTROLLER */}
             <div className="flex flex-col gap-3">
-              <button
-                onClick={toggleWatchlist}
-                disabled={isProcessing}
-                className={`w-full py-3.5 rounded-xl font-bold transition-all duration-300 shadow-lg flex items-center justify-center gap-2 border ${isInWatchlist ? "bg-red-900/40 text-red-400 border-red-500/30 hover:bg-red-900/60" : "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-500/50 hover:to-red-500 hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-1"}`}
-              >
-                {isProcessing ? (
-                  <span className="animate-pulse">Memproses...</span>
-                ) : isInWatchlist ? (
-                  <>
-                    <FaCheck className="text-red-400" /> Hapus dari Watchlist
-                  </>
-                ) : (
-                  <>
-                    <FaBookmark /> Tambah Watchlist
-                  </>
-                )}
-              </button>
+              {isInWatchlist ? (
+                <div className="bg-[#1a0505]/80 backdrop-blur-xl border border-red-900/50 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
+                  <div className="flex items-center justify-between border-b border-red-900/30 pb-2">
+                    <span className="text-xs font-black uppercase text-red-400 tracking-wider flex items-center gap-1.5">
+                      <FaCheck className="text-green-400" /> Di Watchlist
+                    </span>
+                    <button
+                      onClick={handleRemoveFromWatchlist}
+                      disabled={isProcessingWatchlist}
+                      className="text-xs text-gray-500 hover:text-red-400 transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Hapus dari Watchlist"
+                    >
+                      <FaTrash size={10} /> Hapus
+                    </button>
+                  </div>
+
+                  {/* Status Dropdown */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                      {watchlistStatus === "Watching" && <FaPlay className="text-amber-400 text-[10px]" />}
+                      {watchlistStatus === "Completed" && <FaCheck className="text-emerald-400 text-[10px]" />}
+                      {watchlistStatus === "Plan to Watch" && <FaClock className="text-blue-400 text-[10px]" />}
+                      Status Tontonan
+                    </label>
+                    <select
+                      value={watchlistStatus}
+                      onChange={(e) => handleUpdateStatus(e.target.value)}
+                      className="w-full bg-black/70 text-white border border-red-900/50 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-red-500 transition-colors cursor-pointer"
+                    >
+                      <option value="Plan to Watch">Plan to Watch</option>
+                      <option value="Watching">Watching</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  </div>
+
+                  {/* Rating Selector */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <FaStar className="text-yellow-400 text-[10px]" /> Rating Pribadiku
+                    </label>
+                    <select
+                      value={userRating}
+                      onChange={(e) =>
+                        handleUpdateRating(parseInt(e.target.value, 10))
+                      }
+                      className="w-full bg-black/70 text-white border border-red-900/50 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:border-red-500 transition-colors cursor-pointer"
+                    >
+                      <option value="0">Belum Dinilai</option>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                        <option key={num} value={num}>
+                          {num} / 10 Bintang
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={handleAddToWatchlist}
+                  disabled={isProcessingWatchlist}
+                  className="w-full py-3.5 rounded-xl font-bold transition-all duration-300 shadow-lg flex items-center justify-center gap-2 border bg-gradient-to-r from-red-700 to-red-600 text-white border-red-500/50 hover:to-red-500 hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-1 cursor-pointer"
+                >
+                  {isProcessingWatchlist ? (
+                    <span className="animate-pulse">Memproses...</span>
+                  ) : (
+                    <>
+                      <FaBookmark /> Tambah ke Watchlist
+                    </>
+                  )}
+                </button>
+              )}
+
               <button
                 onClick={handleShare}
-                className="w-full py-3.5 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/60 text-gray-300 border-red-900/40 hover:bg-red-900/40 hover:border-red-500/50 hover:text-white"
+                className="w-full py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/60 text-gray-300 border-red-900/40 hover:bg-red-900/40 hover:border-red-500/50 hover:text-white text-sm cursor-pointer"
               >
                 <FaShareAlt /> Bagikan Tautan
               </button>
@@ -649,7 +806,7 @@ const AnimeDetail = () => {
                 {
                   label: "Musim",
                   value: anime.season
-                    ? `${anime.season.toLowerCase()} ${anime.seasonYear}`
+                    ? `${anime.season.toLowerCase()} ${anime.seasonYear || ""}`
                     : null,
                 },
                 {
@@ -684,14 +841,14 @@ const AnimeDetail = () => {
             {/* Judul & Sinopsis */}
             <div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-2 leading-tight tracking-tighter drop-shadow-lg">
-                {anime.title.romaji}
+                {anime.title?.romaji}
               </h1>
               <h2 className="text-lg md:text-xl text-gray-400 font-medium mb-6">
-                {anime.title.english || anime.title.native}
+                {anime.title?.english || anime.title?.native}
               </h2>
 
               <div className="flex flex-wrap gap-2 mb-8">
-                {anime.genres.map((genre, index) => (
+                {anime.genres?.map((genre, index) => (
                   <span
                     key={index}
                     className="bg-red-900/20 text-red-300 px-4 py-1.5 rounded-lg text-sm font-bold border border-red-800/40 shadow-sm uppercase tracking-wider hover:bg-red-900/40 transition-colors cursor-default"
@@ -711,8 +868,8 @@ const AnimeDetail = () => {
               </div>
             </div>
 
-            {/* RELASI & SILSILAH (DARI FITUR SEBELUMNYA) */}
-            {anime.relations && anime.relations.edges.length > 0 && (
+            {/* RELASI & SILSILAH */}
+            {anime.relations && anime.relations.edges?.length > 0 && (
               <div>
                 <div className="mb-6 flex items-center gap-4 border-b border-red-900/30 pb-4">
                   <div className="bg-purple-900/30 p-3 rounded-xl border border-purple-500/20 shadow-inner">
@@ -735,10 +892,10 @@ const AnimeDetail = () => {
                       key={`${relation.node.id}-${idx}`}
                       className="bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/30 rounded-2xl p-3 flex gap-4 hover:bg-red-900/20 hover:border-red-500/50 hover:-translate-y-1 transition-all shadow-lg group"
                     >
-                      <div className="w-16 sm:w-20 flex-shrink-0 rounded-lg overflow-hidden relative border border-red-900/40">
+                      <div className="w-16 sm:w-20 flex-shrink-0 rounded-lg overflow-hidden relative border border-red-900/40 aspect-[3/4]">
                         <img
-                          src={relation.node.coverImage.large}
-                          alt={relation.node.title.romaji}
+                          src={relation.node.coverImage?.large}
+                          alt={relation.node.title?.romaji || "Cover"}
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform"
                         />
                         <div className="absolute bottom-1 right-1 bg-black/80 backdrop-blur-sm p-1 rounded text-gray-300 text-[10px] border border-white/10">
@@ -754,7 +911,7 @@ const AnimeDetail = () => {
                           {translateRelation(relation.relationType)}
                         </span>
                         <h4 className="text-white text-sm font-bold leading-tight line-clamp-2 group-hover:text-red-300 transition-colors">
-                          {relation.node.title.romaji}
+                          {relation.node.title?.romaji}
                         </h4>
                         <div className="flex items-center gap-2 mt-2">
                           <span className="text-xs text-gray-400 bg-black/40 px-1.5 py-0.5 rounded-md border border-gray-800">
@@ -804,21 +961,21 @@ const AnimeDetail = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {anime.characters.edges.map((edge, index) => {
                     const char = edge.node;
-                    const va = edge.voiceActors[0];
+                    const va = edge.voiceActors?.[0];
                     return (
                       <div
-                        key={index}
+                        key={`${char.id}-${index}`}
                         className="bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/30 rounded-2xl p-3 flex justify-between items-center transition-all hover:border-red-500/40 hover:bg-red-900/10 shadow-lg group"
                       >
                         <div className="flex items-center gap-3 w-1/2">
                           <img
                             src={char.image?.large}
-                            alt={char.name.full}
+                            alt={char.name?.full || "Karakter"}
                             className="w-12 h-16 object-cover rounded-xl shadow-md border border-red-900/50 group-hover:scale-105 transition-transform"
                           />
                           <div className="flex flex-col">
                             <span className="font-bold text-white text-sm line-clamp-1">
-                              {char.name.full}
+                              {char.name?.full}
                             </span>
                             <span className="text-[10px] text-red-400 font-bold uppercase tracking-wider">
                               {edge.role}
@@ -829,7 +986,7 @@ const AnimeDetail = () => {
                           <div className="flex items-center gap-3 w-1/2 justify-end text-right">
                             <div className="flex flex-col">
                               <span className="font-bold text-white text-sm line-clamp-1">
-                                {va.name.full}
+                                {va.name?.full}
                               </span>
                               <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">
                                 Jepang
@@ -837,7 +994,7 @@ const AnimeDetail = () => {
                             </div>
                             <img
                               src={va.image?.large}
-                              alt={va.name.full}
+                              alt={va.name?.full || "Pengisi Suara"}
                               className="w-12 h-16 object-cover rounded-xl shadow-md border border-slate-800 group-hover:scale-105 transition-transform"
                             />
                           </div>
@@ -872,13 +1029,13 @@ const AnimeDetail = () => {
                 <div className="flex bg-black/60 border border-red-900/40 rounded-xl p-1.5 w-max shadow-inner backdrop-blur-md">
                   <button
                     onClick={() => setSortBy("terbaru")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${sortBy === "terbaru" ? "bg-red-600 text-white shadow-md" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${sortBy === "terbaru" ? "bg-red-600 text-white shadow-md" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
                   >
                     <FaClock /> Terbaru
                   </button>
                   <button
                     onClick={() => setSortBy("terpopuler")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${sortBy === "terpopuler" ? "bg-red-600 text-white shadow-md" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${sortBy === "terpopuler" ? "bg-red-600 text-white shadow-md" : "text-gray-400 hover:text-white hover:bg-white/5"}`}
                   >
                     <FaFire /> Terpopuler
                   </button>
@@ -916,7 +1073,7 @@ const AnimeDetail = () => {
                     <button
                       type="submit"
                       disabled={isSubmittingReview || !reviewInput.trim()}
-                      className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:from-slate-800 disabled:to-black text-white px-8 py-3.5 rounded-xl font-bold flex items-center justify-center gap-3 shadow-[0_10px_20px_rgba(220,38,38,0.3)] transition-all hover:-translate-y-1 disabled:opacity-50 disabled:shadow-none disabled:transform-none"
+                      className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:from-slate-800 disabled:to-black text-white px-8 py-3.5 rounded-xl font-bold flex items-center justify-center gap-3 shadow-[0_10px_20px_rgba(220,38,38,0.3)] transition-all hover:-translate-y-1 disabled:opacity-50 disabled:shadow-none disabled:transform-none cursor-pointer"
                     >
                       {isSubmittingReview ? (
                         <span className="animate-pulse">Mengirim...</span>

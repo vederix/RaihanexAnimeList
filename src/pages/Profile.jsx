@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
+import { useAuth } from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import {
   FaUser,
@@ -11,73 +12,106 @@ import {
   FaComments,
   FaHistory,
   FaTrophy,
+  FaPen,
+  FaTimes,
+  FaCheck,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import SmartRecommendation from "../components/SmartRecommendation";
 
 const Profile = () => {
-  const [user, setUser] = useState(null);
+  const { user, logout, displayName, avatarUrl, updateProfile } = useAuth();
   const [stats, setStats] = useState({ totalWatchlist: 0, totalReviews: 0 });
   const [recentActivity, setRecentActivity] = useState([]);
   const [activeTab, setActiveTab] = useState("statistik"); // 'statistik' atau 'aktivitas'
   const [isLoading, setIsLoading] = useState(true);
+  
+  // State Edit Profile Modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [newDisplayName, setNewDisplayName] = useState(displayName);
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchProfileData = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!session?.user) {
-          navigate("/auth");
-          return;
-        }
-        setUser(session.user);
+    let isCancelled = false;
 
+    const fetchProfileData = async () => {
+      if (!user) {
+        navigate("/auth");
+        return;
+      }
+
+      try {
         // 1. Ambil Jumlah Watchlist
         const { count: watchlistCount } = await supabase
           .from("watchlist")
           .select("*", { count: "exact", head: true })
-          .eq("user_id", session.user.id);
+          .eq("user_id", user.id);
 
         // 2. Ambil Jumlah Ulasan
         const { count: reviewCount } = await supabase
           .from("reviews")
           .select("*", { count: "exact", head: true })
-          .eq("user_id", session.user.id);
+          .eq("user_id", user.id);
 
-        // 3. Ekstraksi Pola Data: Ambil 4 Watchlist Terakhir (Data Mining ringan)
+        // 3. Ambil 4 Watchlist Terakhir
         const { data: recentWatchlist } = await supabase
           .from("watchlist")
           .select("*")
-          .eq("user_id", session.user.id)
+          .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(4);
 
-        setStats({
-          totalWatchlist: watchlistCount || 0,
-          totalReviews: reviewCount || 0,
-        });
-        setRecentActivity(recentWatchlist || []);
+        if (!isCancelled) {
+          setStats({
+            totalWatchlist: watchlistCount || 0,
+            totalReviews: reviewCount || 0,
+          });
+          setRecentActivity(recentWatchlist || []);
+          setNewDisplayName(displayName);
+        }
       } catch (error) {
-        console.error("Gagal memuat profil:", error);
+        console.error("Gagal memuat data profil:", error);
         toast.error("Gagal memuat data profil.");
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchProfileData();
-  }, [navigate]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user, navigate, displayName]);
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
+      await logout();
       toast.success("Berhasil keluar akun!");
       navigate("/");
-    } catch (error) {
+    } catch {
       toast.error("Gagal logout.");
+    }
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    if (!newDisplayName.trim()) {
+      return toast.error("Nama tampilan tidak boleh kosong!");
+    }
+    setIsUpdating(true);
+    try {
+      await updateProfile(newDisplayName.trim());
+      toast.success("Profil berhasil diperbarui!");
+      setIsEditModalOpen(false);
+    } catch {
+      toast.error("Gagal memperbarui profil.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -121,16 +155,14 @@ const Profile = () => {
   };
 
   const userRank = calculateRank(stats.totalWatchlist);
-  const userMetadata = user?.user_metadata;
-  const username =
-    userMetadata?.display_name || user?.email?.split("@")[0] || "User";
   const userEmail = user?.email || "User";
-  const avatarUrl = `https://ui-avatars.com/api/?name=${username}&background=880000&color=fff&size=256&bold=true`;
-  const joinDate = new Date(user?.created_at).toLocaleDateString("id-ID", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const joinDate = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString("id-ID", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "Baru saja";
 
   return (
     <div className="pb-16 mt-10 min-h-[70vh] relative z-10">
@@ -155,7 +187,7 @@ const Profile = () => {
           <div className="flex flex-col md:flex-row gap-8 items-center md:items-start relative z-10">
             {/* Bagian Avatar & Rank Badge */}
             <div className="flex flex-col items-center gap-4 flex-shrink-0">
-              <div className="relative group cursor-pointer">
+              <div className="relative group">
                 <div className="absolute -inset-2 bg-gradient-to-tr from-red-600 to-red-900 rounded-full blur opacity-60 group-hover:opacity-100 transition duration-500 animate-pulse"></div>
                 <img
                   src={avatarUrl}
@@ -176,7 +208,7 @@ const Profile = () => {
             {/* Bagian Info Diri & Progress Bar */}
             <div className="flex-1 w-full text-center md:text-left">
               <h2 className="text-3xl md:text-4xl font-black text-white mb-3 tracking-tight">
-                {username}
+                {displayName}
               </h2>
 
               <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4 sm:gap-6 text-sm mb-8">
@@ -211,18 +243,14 @@ const Profile = () => {
               {/* Tombol Aksi */}
               <div className="flex flex-wrap gap-3 justify-center md:justify-start">
                 <button
-                  onClick={() =>
-                    toast("Fitur Edit Profil sedang dalam pengembangan!", {
-                      icon: "🛠️",
-                    })
-                  }
-                  className="bg-black/50 hover:bg-red-900/30 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all border border-red-900/50 flex items-center gap-2"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="bg-black/50 hover:bg-red-900/30 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all border border-red-900/50 flex items-center gap-2 cursor-pointer hover:border-red-500"
                 >
-                  <FaUser /> Edit Profil
+                  <FaPen size={12} /> Edit Profil
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] border border-red-500/50 flex items-center gap-2"
+                  className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] border border-red-500/50 flex items-center gap-2 cursor-pointer"
                 >
                   <FaSignOutAlt /> Keluar Akun
                 </button>
@@ -231,17 +259,69 @@ const Profile = () => {
           </div>
         </div>
 
+        {/* --- MODAL EDIT PROFIL --- */}
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-[#1a0505] border border-red-900/50 p-6 md:p-8 rounded-3xl w-full max-w-md shadow-2xl relative">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-black text-white flex items-center gap-2">
+                  <FaUser className="text-red-500" /> Ubah Nama Tampilan
+                </h3>
+                <button
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="text-gray-400 hover:text-white p-2 rounded-lg bg-black/40 cursor-pointer"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveProfile} className="flex flex-col gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-2">
+                    Username / Display Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newDisplayName}
+                    onChange={(e) => setNewDisplayName(e.target.value)}
+                    className="w-full bg-black/50 border border-red-900/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-red-500 text-sm"
+                    placeholder="Nama baru kamu..."
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-400 hover:text-white bg-slate-800 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdating}
+                    className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 flex items-center gap-2 shadow-lg cursor-pointer"
+                  >
+                    {isUpdating ? "Menyimpan..." : <><FaCheck /> Simpan</>}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* --- TABS NAVIGASI --- */}
         <div className="flex gap-4 mb-6 border-b border-red-900/30 pb-2">
           <button
             onClick={() => setActiveTab("statistik")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-bold transition-all border-b-2 ${activeTab === "statistik" ? "border-red-500 text-red-400" : "border-transparent text-gray-500 hover:text-gray-300"}`}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-bold transition-all border-b-2 cursor-pointer ${activeTab === "statistik" ? "border-red-500 text-red-400" : "border-transparent text-gray-500 hover:text-gray-300"}`}
           >
             <FaChartBar /> Analitik Data
           </button>
           <button
             onClick={() => setActiveTab("aktivitas")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-bold transition-all border-b-2 ${activeTab === "aktivitas" ? "border-red-500 text-red-400" : "border-transparent text-gray-500 hover:text-gray-300"}`}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-bold transition-all border-b-2 cursor-pointer ${activeTab === "aktivitas" ? "border-red-500 text-red-400" : "border-transparent text-gray-500 hover:text-gray-300"}`}
           >
             <FaHistory /> Aktivitas Terakhir
           </button>
@@ -298,12 +378,12 @@ const Profile = () => {
                   <Link
                     to={`/anime/${item.mal_id}`}
                     key={item.id}
-                    className="relative group rounded-xl overflow-hidden shadow-lg border border-red-900/30 block"
+                    className="relative group rounded-xl overflow-hidden shadow-lg border border-red-900/30 block aspect-[3/4]"
                   >
                     <img
                       src={item.image_url}
                       alt={item.title}
-                      className="w-full aspect-[3/4] object-cover group-hover:scale-110 transition-transform duration-500"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex flex-col justify-end p-3 opacity-90 group-hover:opacity-100 transition-opacity">
                       <h4 className="text-white text-xs font-bold line-clamp-2 leading-snug">

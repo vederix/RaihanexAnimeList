@@ -3,6 +3,7 @@ import AnimeCard from "../components/AnimeCard";
 import SkeletonCard from "../components/SkeletonCard";
 import { fetchAniList } from "../utils/anilist";
 import { supabase } from "../supabaseClient";
+import { useAuth } from "../context/AuthContext";
 import {
   FaFire,
   FaCalendarAlt,
@@ -56,6 +57,7 @@ const RECOM_QUERY = `
 `;
 
 const Home = () => {
+  const { user } = useAuth();
   const [trendingAnime, setTrendingAnime] = useState([]);
   const [airingAnime, setAiringAnime] = useState([]);
   const [recommendedAnime, setRecommendedAnime] = useState([]);
@@ -67,59 +69,64 @@ const Home = () => {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    let isCancelled = false;
 
-  const fetchDashboardData = async () => {
-    setIsLoading(true);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    const loadDashboard = async () => {
+      try {
+        const [airingData, trendingData] = await Promise.all([
+          fetchAniList(AIRING_QUERY),
+          fetchAniList(TRENDING_QUERY, { page: 1 }),
+        ]);
 
-      const [airingData, trendingData] = await Promise.all([
-        fetchAniList(AIRING_QUERY),
-        fetchAniList(TRENDING_QUERY, { page: 1 }),
-      ]);
+        if (isCancelled) return;
+        setAiringAnime(airingData?.Page?.airingSchedules || []);
+        setTrendingAnime(trendingData?.Page?.media || []);
+        setHasNextPage(trendingData?.Page?.pageInfo?.hasNextPage || false);
 
-      setAiringAnime(airingData.Page.airingSchedules);
-      setTrendingAnime(trendingData.Page.media);
-      setHasNextPage(trendingData.Page.pageInfo.hasNextPage);
+        if (user) {
+          const { data: topAnime } = await supabase
+            .from("watchlist")
+            .select("mal_id")
+            .eq("user_id", user.id)
+            .gte("rating_pribadi", 8)
+            .limit(1);
 
-      if (session?.user) {
-        const { data: topAnime } = await supabase
-          .from("watchlist")
-          .select("mal_id")
-          .eq("user_id", session.user.id)
-          .gte("rating_pribadi", 8)
-          .limit(1);
+          if (topAnime && topAnime.length > 0 && !isCancelled) {
+            const recomData = await fetchAniList(RECOM_QUERY, {
+              id: topAnime[0].mal_id,
+            });
+            const animeNodes =
+              recomData?.Media?.recommendations?.edges
+                ?.map((edge) => edge.node.mediaRecommendation)
+                ?.filter((anime) => anime !== null) || [];
 
-        if (topAnime && topAnime.length > 0) {
-          const recomData = await fetchAniList(RECOM_QUERY, {
-            id: topAnime[0].mal_id,
-          });
-          const animeNodes = recomData.Media.recommendations.edges
-            .map((edge) => edge.node.mediaRecommendation)
-            .filter((anime) => anime !== null);
-
-          setBaseRecomTitle(recomData.Media.title.romaji);
-          setRecommendedAnime(animeNodes);
+            setBaseRecomTitle(recomData?.Media?.title?.romaji || "");
+            setRecommendedAnime(animeNodes);
+          }
+        }
+      } catch (error) {
+        console.error("Gagal memuat dasbor:", error);
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
         }
       }
-    } catch (error) {
-      console.error("Gagal memuat dasbor:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+
+    loadDashboard();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user]);
 
   const handleLoadMore = async () => {
     setIsFetchingMore(true);
     const nextPage = page + 1;
     try {
       const data = await fetchAniList(TRENDING_QUERY, { page: nextPage });
-      setTrendingAnime((prev) => [...prev, ...data.Page.media]);
-      setHasNextPage(data.Page.pageInfo.hasNextPage);
+      setTrendingAnime((prev) => [...prev, ...(data?.Page?.media || [])]);
+      setHasNextPage(data?.Page?.pageInfo?.hasNextPage || false);
       setPage(nextPage);
     } catch (error) {
       console.error("Gagal load more:", error);
@@ -129,10 +136,15 @@ const Home = () => {
   };
 
   const formatTimeAiring = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    const days = Math.floor(hours / 24);
+    if (!seconds || seconds <= 0) return "Tayang sekarang";
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+
     if (days > 0) return `${days} hari lagi`;
-    return `${hours} jam lagi`;
+    if (hours > 0) return `${hours} jam lagi`;
+    if (minutes > 0) return `${minutes} menit lagi`;
+    return "Segera tayang";
   };
 
   return (
@@ -165,13 +177,13 @@ const Home = () => {
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
             <Link
               to="/search"
-              className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(220,38,38,0.4)] hover:shadow-[0_0_40px_rgba(220,38,38,0.6)] transition-all flex items-center justify-center gap-3 hover:-translate-y-1"
+              className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(220,38,38,0.4)] hover:shadow-[0_0_40px_rgba(220,38,38,0.6)] transition-all flex items-center justify-center gap-3 hover:-translate-y-1 cursor-pointer"
             >
               <FaCompass className="text-xl" /> Mulai Petualangan
             </Link>
             <Link
               to="/schedule"
-              className="bg-[#1a0505]/60 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-gray-300 hover:text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 hover:-translate-y-1 shadow-lg"
+              className="bg-[#1a0505]/60 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-gray-300 hover:text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 hover:-translate-y-1 shadow-lg cursor-pointer"
             >
               <FaPlay className="text-red-500" /> Lihat Jadwal
             </Link>
@@ -182,8 +194,15 @@ const Home = () => {
       {/* --- KONTEN UTAMA --- */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         {isLoading ? (
-          <div className="flex justify-center items-center py-20">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-red-500 drop-shadow-[0_0_20px_rgba(239,68,68,0.8)]"></div>
+          <div className="flex flex-col gap-12 md:gap-16">
+            <section className="bg-[#0a0202]/60 backdrop-blur-xl border border-red-900/30 p-6 md:p-8 rounded-[2rem]">
+              <div className="h-8 bg-red-900/20 rounded-xl w-64 mb-6 animate-pulse"></div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+                {[...Array(5)].map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+              </div>
+            </section>
           </div>
         ) : (
           <div className="flex flex-col gap-12 md:gap-16">
@@ -199,20 +218,19 @@ const Home = () => {
                       Jadwal Rilis Terdekat
                     </h2>
                     <p className="text-sm text-gray-400 mt-1">
-                      Anime yang akan tayang dalam beberapa jam ke depan.
+                      Anime yang akan tayang dalam waktu dekat.
                     </p>
                   </div>
                 </div>
                 <Link
                   to="/schedule"
-                  className="text-xs sm:text-sm font-bold text-red-400 hover:text-white transition-colors bg-black/40 px-5 py-2.5 rounded-xl border border-red-900/50 hover:bg-red-900/40 w-max shadow-md"
+                  className="text-xs sm:text-sm font-bold text-red-400 hover:text-white transition-colors bg-black/40 px-5 py-2.5 rounded-xl border border-red-900/50 hover:bg-red-900/40 w-max shadow-md cursor-pointer"
                 >
                   Kalender Lengkap &rarr;
                 </Link>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
-                {/* SOLUSI ERROR KEY: Menambahkan index ke dalam properti key */}
                 {airingAnime.map((schedule, index) => (
                   <div
                     key={`${schedule.media?.id || schedule.id}-${schedule.episode}-${index}`}
@@ -276,8 +294,7 @@ const Home = () => {
                     Sedang Trending
                   </h2>
                   <p className="text-sm text-gray-400 mt-1">
-                    Judul-judul terpanas yang sedang ramai dibicarakan
-                    komunitas.
+                    Judul-judul terpanas yang sedang ramai dibicarakan komunitas.
                   </p>
                 </div>
               </div>
@@ -298,7 +315,7 @@ const Home = () => {
                   <button
                     onClick={handleLoadMore}
                     disabled={isFetchingMore}
-                    className="bg-black/60 hover:bg-red-900/40 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-red-300 hover:text-white px-8 py-4 rounded-xl transition-all duration-300 shadow-[0_10px_30px_rgba(220,38,38,0.15)] font-bold tracking-wide flex items-center gap-3 group"
+                    className="bg-black/60 hover:bg-red-900/40 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-red-300 hover:text-white px-8 py-4 rounded-xl transition-all duration-300 shadow-[0_10px_30px_rgba(220,38,38,0.15)] font-bold tracking-wide flex items-center gap-3 group cursor-pointer"
                   >
                     {isFetchingMore ? (
                       <span className="animate-pulse">

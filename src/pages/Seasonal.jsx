@@ -26,10 +26,27 @@ const SEASONAL_QUERY = `
   }
 `;
 
+const getCurrentSeasonAndYear = () => {
+  const now = new Date();
+  const month = now.getMonth(); // 0 = Jan, 11 = Des
+  const currentYear = now.getFullYear();
+  let currentSeason;
+  if (month >= 2 && month <= 4) {
+    currentSeason = "SPRING";
+  } else if (month >= 5 && month <= 7) {
+    currentSeason = "SUMMER";
+  } else if (month >= 8 && month <= 10) {
+    currentSeason = "FALL";
+  } else {
+    currentSeason = "WINTER";
+  }
+  return { year: currentYear, season: currentSeason };
+};
+
 const Seasonal = () => {
-  // Karena saat ini adalah Juli 2026, kita set default ke SUMMER 2026
-  const [year, setYear] = useState(2026);
-  const [season, setSeason] = useState("SUMMER");
+  const initial = getCurrentSeasonAndYear();
+  const [year, setYear] = useState(initial.year);
+  const [season, setSeason] = useState(initial.season);
   const [animeList, setAnimeList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -57,24 +74,43 @@ const Seasonal = () => {
   ];
 
   useEffect(() => {
+    let isCancelled = false;
+
     const fetchSeasonalAnime = async () => {
-      setIsLoading(true);
       try {
         const data = await fetchAniList(SEASONAL_QUERY, {
           season: season,
           seasonYear: year,
           page: 1,
         });
-        setAnimeList(data.Page.media);
+        if (!isCancelled) {
+          setAnimeList(data?.Page?.media || []);
+        }
       } catch (error) {
         console.error("Gagal memuat data anime musiman:", error);
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchSeasonalAnime();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [season, year]);
+
+  const handleYearChange = (e) => {
+    setIsLoading(true);
+    setYear(parseInt(e.target.value, 10) || initial.year);
+  };
+
+  const handleSeasonChange = (sValue) => {
+    setIsLoading(true);
+    setSeason(sValue);
+  };
 
   return (
     <div className="pb-16 mt-8 min-h-[75vh] relative z-10">
@@ -104,7 +140,7 @@ const Seasonal = () => {
             <input
               type="number"
               value={year}
-              onChange={(e) => setYear(parseInt(e.target.value) || 2026)}
+              onChange={handleYearChange}
               className="bg-black/50 border border-red-900/50 text-white font-black text-xl rounded-xl px-4 py-2 w-32 text-center focus:outline-none focus:border-red-500/80 focus:ring-1 focus:ring-red-500/50 transition-all"
             />
           </div>
@@ -114,8 +150,8 @@ const Seasonal = () => {
             {seasons.map((s) => (
               <button
                 key={s.value}
-                onClick={() => setSeason(s.value)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all border ${
+                onClick={() => handleSeasonChange(s.value)}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all border cursor-pointer ${
                   season === s.value
                     ? "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-500/50 shadow-[0_0_15px_rgba(220,38,38,0.4)] scale-105"
                     : "bg-black/40 text-gray-400 border-red-900/30 hover:bg-red-900/30 hover:text-white"
@@ -166,8 +202,8 @@ const Seasonal = () => {
 
                 {/* Cover Poster */}
                 <img
-                  src={anime.coverImage.large}
-                  alt={anime.title.romaji}
+                  src={anime.coverImage?.large}
+                  alt={anime.title?.romaji || "Poster"}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
 
@@ -176,7 +212,7 @@ const Seasonal = () => {
                 {/* Info Text Bawah */}
                 <div className="absolute bottom-0 w-full p-3 flex flex-col justify-end translate-y-2 group-hover:translate-y-0 transition-transform">
                   <h3 className="text-white font-bold text-sm line-clamp-2 leading-tight drop-shadow-md group-hover:text-red-400 transition-colors">
-                    {anime.title.romaji}
+                    {anime.title?.romaji}
                   </h3>
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-1.5 bg-black/60 px-2 py-1 rounded-md border border-red-900/40">
