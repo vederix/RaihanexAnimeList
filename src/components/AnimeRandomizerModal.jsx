@@ -192,25 +192,26 @@ export default function AnimeRandomizerModal({ isOpen, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Modal */}
-        <div className="p-5 border-b border-red-900/40 flex items-center justify-between bg-gradient-to-r from-red-950/40 via-black to-black">
+        <div className="p-4 sm:p-5 border-b border-red-900/40 flex items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-red-950/40 via-black to-black">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-tr from-red-600 to-red-800 rounded-xl text-white shadow-lg shadow-red-600/40">
-              <FaDice className="text-xl animate-spin-slow" />
+            <div className="p-2 sm:p-2.5 bg-gradient-to-tr from-red-600 to-red-800 rounded-xl text-white shadow-lg shadow-red-600/40 flex-shrink-0">
+              <FaDice className="text-lg sm:text-xl animate-spin-slow" />
             </div>
             <div>
-              <h3 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
-                GACHA ROULETTE ANIME
+              <h3 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2 leading-tight">
+                GACHA ROULETTE
               </h3>
-              <p className="text-xs text-gray-400">
-                Bingung mau nonton apa? Biarkan takdir memilihkan untukmu!
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5">
+                Biarkan takdir memilihkan untukmu!
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white p-2 rounded-full bg-white/5 hover:bg-red-600 transition-colors cursor-pointer"
+            className="flex-shrink-0 text-gray-400 hover:text-white p-2.5 sm:p-2 rounded-full bg-white/10 sm:bg-white/5 hover:bg-red-600 transition-colors cursor-pointer"
+            aria-label="Tutup Modal"
           >
-            <FaTimes size={15} />
+            <FaTimes size={16} />
           </button>
         </div>
 
