@@ -145,10 +145,11 @@ const Watchlist = () => {
     }
   };
 
-  // --- FUNGSI MENGHAPUS ANIME ---
   const executeDeleteSingle = async (animeId) => {
     if (!user) return;
     try {
+      if (!animeId) throw new Error("Anime ID tidak valid");
+
       const { error } = await supabase
         .from("watchlist")
         .delete()
@@ -159,8 +160,8 @@ const Watchlist = () => {
         prev.filter((anime) => anime.anilist_id !== animeId),
       );
       toast.success("Anime dihapus dari Watchlist!");
-    } catch {
-      toast.error("Gagal menghapus anime.");
+    } catch (err) {
+      toast.error(err?.message || "Gagal menghapus anime.");
     }
   };
 

@@ -42,7 +42,9 @@ export default function CommunityFeed() {
         { event: "INSERT", schema: "public", table: "reviews" },
         (payload) => {
           const newReview = payload.new;
-          setActivities((prev) => [newReview, ...prev].slice(0, 50));
+          setActivities((prev) => 
+            prev.some(r => r.id === newReview.id) ? prev : [newReview, ...prev].slice(0, 50)
+          );
         }
       )
       .subscribe();

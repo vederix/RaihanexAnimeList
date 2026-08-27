@@ -58,11 +58,12 @@ const Schedule = () => {
 
       // Safety limit: max 5 halaman (250 anime) untuk mencegah rate-limit 429 dari AniList
       while (hasNextPage && page <= 5) {
-        const data = await fetchAniList(SCHEDULE_QUERY, {
+        const { data, error } = await fetchAniList(SCHEDULE_QUERY, {
           page,
           startTime,
           endTime,
         });
+        if (error) throw new Error(error);
         allSchedules = [
           ...allSchedules,
           ...(data?.Page?.airingSchedules || []),

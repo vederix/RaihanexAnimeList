@@ -118,7 +118,7 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
           setFavoriteSongs(new Set(data.map((item) => item.theme_title)));
         }
       } catch {
-        // Fallback silent
+        toast.error("Gagal memuat lagu favorit.");
       }
     }
 

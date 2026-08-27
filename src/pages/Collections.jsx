@@ -19,7 +19,7 @@ export default function Collections() {
 
   const fetchCollections = useCallback(async () => {
     try {
-      let query = supabase.from("collections").select("*").order("created_at", { ascending: false });
+      let query = supabase.from("collections").select("*").order("created_at", { ascending: false }).limit(50);
       
       if (user) {
         // Fetch public OR user's own

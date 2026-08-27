@@ -39,6 +39,7 @@ import {
   FaCalendarPlus,
   FaBell,
   FaDownload,
+  FaImage,
 } from "react-icons/fa";
 
 // 1. QUERY ANILIST DIPERLUAS (Termasuk Relations, idMal, nextAiringEpisode)
@@ -99,6 +100,7 @@ const AnimeDetail = () => {
   const [watchlistStatus, setWatchlistStatus] = useState("Plan to Watch");
   const [userRating, setUserRating] = useState(0);
   const [episodesWatched, setEpisodesWatched] = useState(0);
+  const [watchlistId, setWatchlistId] = useState(null);
   const [isProcessingWatchlist, setIsProcessingWatchlist] = useState(false);
 
   // STATE ULASAN & FITUR KOMUNITAS
@@ -184,11 +186,13 @@ const AnimeDetail = () => {
 
         if (data) {
           setIsInWatchlist(true);
+          setWatchlistId(data.id);
           setWatchlistStatus(data.status_tontonan || "Plan to Watch");
           setUserRating(data.rating_pribadi || 0);
           setEpisodesWatched(data.episodes_watched || 0);
         } else {
           setIsInWatchlist(false);
+          setWatchlistId(null);
           setWatchlistStatus("Plan to Watch");
           setUserRating(0);
           setEpisodesWatched(0);
@@ -211,7 +215,8 @@ const AnimeDetail = () => {
           return;
         }
 
-        const data = await fetchAniList(DETAIL_QUERY, { id: parsedId });
+        const { data, error } = await fetchAniList(DETAIL_QUERY, { id: parsedId });
+        if (error) throw new Error(error);
         const animeData = data?.Media;
         if (!isCancelled) {
           setAnime(animeData);
@@ -222,8 +227,10 @@ const AnimeDetail = () => {
         }
 
         if (animeData?.id && !isCancelled) {
-          fetchReviews(animeData.id);
-          checkWatchlistStatus(animeData.id);
+          await Promise.all([
+            fetchReviews(animeData.id),
+            checkWatchlistStatus(animeData.id),
+          ]);
         }
       } catch (error) {
         console.error("Gagal memuat detail anime:", error);
@@ -265,14 +272,20 @@ const AnimeDetail = () => {
           total_episodes: anime.episodes || null,
         },
       ]);
-      if (error) throw error;
+      if (error) {
+        console.error("Watchlist Insert Error:", JSON.stringify(error, null, 2));
+        throw error;
+      }
       setIsInWatchlist(true);
       setWatchlistStatus("Plan to Watch");
       setUserRating(0);
       setEpisodesWatched(0);
       toast.success("Ditambahkan ke Watchlist!");
-    } catch {
-      toast.error("Gagal menambahkan ke Watchlist.");
+      
+      // Re-fetch to get the new watchlist ID
+      checkWatchlistStatus(anime.id);
+    } catch (err) {
+      toast.error(err?.message || "Gagal menambahkan ke Watchlist.");
     } finally {
       setIsProcessingWatchlist(false);
     }
@@ -338,19 +351,24 @@ const AnimeDetail = () => {
       onConfirm: async () => {
         setIsProcessingWatchlist(true);
         try {
+          if (!anime.id) throw new Error("Anime ID tidak valid");
+          
           const { error } = await supabase
             .from("watchlist")
             .delete()
             .eq("user_id", user.id)
             .eq("anilist_id", anime.id);
 
-          if (error) throw error;
+          if (error) {
+            console.error("Watchlist Delete Error:", JSON.stringify(error, null, 2));
+            throw error;
+          }
           setIsInWatchlist(false);
           setWatchlistStatus("Plan to Watch");
           setUserRating(0);
           toast.success("Dihapus dari Watchlist!");
-        } catch {
-          toast.error("Gagal menghapus dari Watchlist.");
+        } catch (err) {
+          toast.error(err?.message || "Gagal menghapus dari Watchlist.");
           } finally {
           setIsProcessingWatchlist(false);
         }
@@ -401,7 +419,6 @@ const AnimeDetail = () => {
         anilist_id: anime.id,
         user_email: user.email,
         user_name: displayName,
-        anime_title: anime.title?.romaji || anime.title?.english || "Anime",
         content: reviewInput.trim(),
         liked_by: [],
         is_spoiler: isSpoilerInput,
@@ -434,7 +451,6 @@ const AnimeDetail = () => {
         anilist_id: anime.id,
         user_email: user.email,
         user_name: displayName,
-        anime_title: anime.title?.romaji || anime.title?.english || "Anime",
         content: replyInput.trim(),
         liked_by: [],
         is_spoiler: false,
@@ -791,10 +807,10 @@ const AnimeDetail = () => {
 
         <button
           onClick={() => navigate(-1)}
-          className="absolute top-8 left-4 md:left-8 btn-secondary px-5 py-2.5 z-10 group"
+          className="absolute top-6 left-4 md:left-8 btn-secondary px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold z-10 group inline-flex items-center gap-2 shadow-xl backdrop-blur-md cursor-pointer active:scale-95 transition-all"
         >
-          <FaArrowLeft className="group-hover:-translate-x-1 transition-transform" />{" "}
-          Kembali
+          <FaArrowLeft className="group-hover:-translate-x-1 transition-transform text-xs" />
+          <span>Kembali</span>
         </button>
       </div>
 
@@ -915,33 +931,36 @@ const AnimeDetail = () => {
                 <button
                   onClick={handleAddToWatchlist}
                   disabled={isProcessingWatchlist}
-                  className="w-full btn-primary py-3.5 shadow-[0_0_20px_rgba(220,38,38,0.4)]"
+                  className="w-full btn-primary py-3.5 px-4 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isProcessingWatchlist ? (
-                    <span className="animate-pulse">Memproses...</span>
+                    <span className="animate-pulse flex items-center gap-2">Memproses...</span>
                   ) : (
                     <>
-                      <FaBookmark /> Tambah ke Watchlist
+                      <FaBookmark className="text-sm shrink-0" />
+                      <span>Tambah ke Watchlist</span>
                     </>
                   )}
                 </button>
               )}
 
               <div className="flex flex-col gap-2">
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={handleShare}
-                    className="flex-1 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/60 text-gray-300 border-red-900/40 hover:bg-red-900/40 hover:border-red-500/50 hover:text-white text-sm cursor-pointer"
+                    className="btn-secondary py-2.5 px-3 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-2 shadow-md hover:border-red-500/50 transition-all cursor-pointer active:scale-95"
                     title="Bagikan Tautan"
                   >
-                    <FaShareAlt /> Tautan
+                    <FaShareAlt className="text-xs shrink-0" />
+                    <span>Tautan</span>
                   </button>
                   <button
                     onClick={() => setShowShareCard(true)}
-                    className="flex-1 btn-secondary py-3 text-sm"
+                    className="btn-secondary py-2.5 px-3 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-2 shadow-md hover:border-red-500/50 transition-all cursor-pointer active:scale-95"
                     title="Buat Kartu Gambar"
                   >
-                    Kartu Visual
+                    <FaImage className="text-xs shrink-0" />
+                    <span>Kartu Visual</span>
                   </button>
                 </div>
                 <button
@@ -949,9 +968,10 @@ const AnimeDetail = () => {
                     if (!user) return toast.error("Kamu harus login dulu!");
                     setShowCollectionModal(true);
                   }}
-                  className="w-full btn-secondary py-3 text-sm"
+                  className="w-full btn-secondary py-3 px-4 rounded-xl flex items-center justify-center gap-2.5 text-xs md:text-sm font-bold shadow-md hover:border-red-500/50 transition-all cursor-pointer active:scale-95"
                 >
-                  <FaLayerGroup /> Tambahkan ke Koleksi
+                  <FaLayerGroup className="text-sm shrink-0" />
+                  <span>Tambahkan ke Koleksi</span>
                 </button>
               </div>
             </div>
@@ -1318,13 +1338,14 @@ const AnimeDetail = () => {
                     <button
                       type="submit"
                       disabled={isSubmittingReview || !reviewInput.trim()}
-                      className="btn-primary px-8 py-3.5 shadow-[0_10px_20px_rgba(220,38,38,0.3)] disabled:opacity-50 disabled:shadow-none disabled:transform-none"
+                      className="btn-primary px-8 py-3.5 rounded-xl flex items-center justify-center gap-2 text-sm font-bold shadow-[0_10px_20px_rgba(220,38,38,0.3)] disabled:opacity-50 disabled:shadow-none disabled:transform-none cursor-pointer active:scale-95 transition-all"
                     >
                       {isSubmittingReview ? (
-                        <span className="animate-pulse">Mengirim...</span>
+                        <span className="animate-pulse flex items-center gap-2">Mengirim...</span>
                       ) : (
                         <>
-                          <FaPaperPlane /> Kirim Ulasan Publik
+                          <FaPaperPlane className="text-xs shrink-0" />
+                          <span>Kirim Ulasan Publik</span>
                         </>
                       )}
                     </button>

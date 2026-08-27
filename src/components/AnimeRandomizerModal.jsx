@@ -86,11 +86,12 @@ export default function AnimeRandomizerModal({ isOpen, onClose }) {
       const genreVar = selectedGenre === "Semua" ? undefined : selectedGenre;
       const formatVar = selectedFormat || undefined;
 
-      const data = await fetchAniList(RANDOM_QUERY, {
+      const { data, error } = await fetchAniList(RANDOM_QUERY, {
         page: randomPage,
         genre: genreVar,
         format: formatVar,
       });
+      if (error) throw new Error(error);
 
       const list = data?.Page?.media || [];
       if (list.length === 0) {
@@ -136,11 +137,9 @@ export default function AnimeRandomizerModal({ isOpen, onClose }) {
         {
           user_id: user.id,
           anilist_id: result.id,
-          anime_id: result.id,
           title: result.title?.romaji || "Anime",
           image_url: result.coverImage?.large || "",
           status_tontonan: "Plan to Watch",
-          status: "Plan to Watch",
           episodes_watched: 0,
           total_episodes: result.episodes || 0,
           score: result.averageScore || 0,

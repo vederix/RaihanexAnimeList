@@ -93,7 +93,8 @@ const Search = () => {
           seasonYear: year ? parseInt(year, 10) : undefined,
         };
 
-        const data = await fetchAniList(SEARCH_QUERY, variables);
+        const { data, error } = await fetchAniList(SEARCH_QUERY, variables);
+        if (error) throw new Error(error);
         if (!isCancelled) {
           setSearchResults(data?.Page?.media || []);
           setHasNextPage(data?.Page?.pageInfo?.hasNextPage || false);
@@ -154,7 +155,8 @@ const Search = () => {
         season: season || undefined,
         seasonYear: year ? parseInt(year, 10) : undefined,
       };
-      const data = await fetchAniList(SEARCH_QUERY, variables);
+      const { data, error } = await fetchAniList(SEARCH_QUERY, variables);
+      if (error) throw new Error(error);
       const newAnimes = data?.Page?.media || [];
       const hasNext = data?.Page?.pageInfo?.hasNextPage || false;
 

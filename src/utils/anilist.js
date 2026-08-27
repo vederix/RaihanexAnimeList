@@ -9,7 +9,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * @param {string} query - Query GraphQL AniList
  * @param {object} variables - Variabel parameter query
  * @param {object} options - Opsi caching { bypassCache: boolean, ttl: number, retryCount: number }
- * @returns {Promise<object>} data hasil query
+ * @returns {Promise<{data: object|null, error: string|null}>} data hasil query dan error
  */
 export const fetchAniList = async (query, variables = {}, options = {}) => {
   const { bypassCache = false, ttl = DEFAULT_TTL_MS, retryCount = 0 } = options;
@@ -22,7 +22,7 @@ export const fetchAniList = async (query, variables = {}, options = {}) => {
   if (!bypassCache && queryCache.has(cacheKey)) {
     const cachedEntry = queryCache.get(cacheKey);
     if (now - cachedEntry.timestamp < ttl) {
-      return cachedEntry.data;
+      return { data: cachedEntry.data, error: null };
     }
     // Jika sudah basi, hapus dari memory
     queryCache.delete(cacheKey);
@@ -53,13 +53,13 @@ export const fetchAniList = async (query, variables = {}, options = {}) => {
   try {
     json = await response.json();
   } catch {
-    throw new Error("Gagal memproses data respon dari AniList.");
+    return { data: null, error: "Gagal memproses data respon dari AniList." };
   }
 
   // Tangkap error jika HTTP status error atau terdapat GraphQL errors
   if (!response.ok || (json.errors && json.errors.length > 0)) {
     const errorMsg = json.errors?.[0]?.message || `Gagal terhubung ke AniList (Status: ${response.status})`;
-    throw new Error(errorMsg);
+    return { data: null, error: errorMsg };
   }
 
   // 3. Simpan ke Cache jika berhasil
@@ -70,7 +70,7 @@ export const fetchAniList = async (query, variables = {}, options = {}) => {
     });
   }
 
-  return json.data;
+  return { data: json.data, error: null };
 };
 
 /**

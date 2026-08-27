@@ -43,7 +43,8 @@ export default function Compare() {
 
   const fetchAnimeDetails = useCallback(async (id, side) => {
     try {
-      const data = await fetchAniList(ANIME_DETAIL_QUERY, { id });
+      const { data, error } = await fetchAniList(ANIME_DETAIL_QUERY, { id });
+      if (error) throw new Error(error);
       if (data?.Media) {
         if (side === "left") setLeftAnime(data.Media);
         else setRightAnime(data.Media);
@@ -115,7 +116,8 @@ function SearchAnimeBox({ side, onSelect }) {
     timeoutRef.current = setTimeout(async () => {
       setIsLoading(true);
       try {
-        const data = await fetchAniList(SEARCH_QUERY, { search: query });
+        const { data, error } = await fetchAniList(SEARCH_QUERY, { search: query });
+        if (error) throw new Error(error);
         if (!isCancelled) setResults(data?.Page?.media || []);
       } catch {
         // Fallback

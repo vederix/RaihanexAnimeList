@@ -85,11 +85,13 @@ const Seasonal = () => {
   const fetchSeasonalAnime = async (isCancelled = false) => {
     setFetchError(null);
     try {
-      const data = await fetchAniList(SEASONAL_QUERY, {
+      const { data, error } = await fetchAniList(SEASONAL_QUERY, {
         season: season,
         seasonYear: year,
         page: 1,
       });
+
+      if (error) throw new Error(error);
       if (!isCancelled) {
         setAnimeList(data?.Page?.media || []);
         setHasNextPage(data?.Page?.pageInfo?.hasNextPage || false);
@@ -130,11 +132,13 @@ const Seasonal = () => {
 
     const nextPage = page + 1;
     try {
-      const data = await fetchAniList(SEASONAL_QUERY, {
+      const { data, error } = await fetchAniList(SEASONAL_QUERY, {
         season: season,
         seasonYear: year,
         page: nextPage,
       });
+
+      if (error) throw new Error(error);
       const newAnimes = data?.Page?.media || [];
       const hasNext = data?.Page?.pageInfo?.hasNextPage || false;
 

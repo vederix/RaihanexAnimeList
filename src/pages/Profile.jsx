@@ -26,7 +26,6 @@ const Profile = () => {
   const { user, logout, displayName, avatarUrl, updateProfile } = useAuth();
   const [stats, setStats] = useState({ totalWatchlist: 0, totalReviews: 0 });
   const [recentActivity, setRecentActivity] = useState([]);
-  const [userBadges, setUserBadges] = useState([]);
   const [activeTab, setActiveTab] = useState("statistik"); // 'statistik' atau 'aktivitas'
   const [isLoading, setIsLoading] = useState(true);
   
@@ -53,7 +52,6 @@ const Profile = () => {
           { count: watchlistCount, error: watchlistError },
           { count: reviewCount, error: reviewError },
           { data: recentWatchlist, error: recentError },
-          { data: earnedData, error: badgesError },
         ] = await Promise.all([
           supabase
             .from("watchlist")
@@ -69,18 +67,11 @@ const Profile = () => {
             .eq("user_id", user.id)
             .order("created_at", { ascending: false })
             .limit(4),
-          supabase
-            .from("user_badges")
-            .select("*, badges(*)")
-            .eq("user_id", user.id),
         ]);
 
         if (watchlistError) console.error("Error watchlist count:", watchlistError);
         if (reviewError) console.error("Error review count:", reviewError);
         if (recentError) console.error("Error recent watchlist:", recentError);
-        if (badgesError) console.error("Error badges:", badgesError);
-
-        const finalBadges = earnedData || [];
 
         if (!isCancelled) {
           setStats({
@@ -88,7 +79,6 @@ const Profile = () => {
             totalReviews: reviewCount || 0,
           });
           setRecentActivity(recentWatchlist || []);
-          setUserBadges(finalBadges.map((b) => b.badges).filter(Boolean));
           setNewDisplayName(displayName);
         }
       } catch (error) {
@@ -266,29 +256,6 @@ const Profile = () => {
                   ></div>
                 </div>
               </div>
-
-              {/* Koleksi Lencana (Badges) */}
-              {userBadges.length > 0 && (
-                <div className="mb-8">
-                  <h3 className="text-sm font-bold text-gray-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                    <FaTrophy className="text-yellow-500" /> Lencana Prestasi
-                  </h3>
-                  <div className="flex flex-wrap gap-3 justify-center md:justify-start">
-                    {userBadges.map((badge, idx) => (
-                      <div key={idx} className="flex flex-col items-center group relative">
-                        <div className="w-12 h-12 flex items-center justify-center bg-black/60 border border-yellow-500/50 rounded-full shadow-[0_0_15px_rgba(234,179,8,0.2)] text-2xl group-hover:scale-110 transition-transform">
-                          {badge.icon_url || '🏅'}
-                        </div>
-                        {/* Tooltip */}
-                        <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20 border border-white/10">
-                          <strong className="block text-yellow-400">{badge.name}</strong>
-                          {badge.description}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Tombol Aksi */}
               <div className="flex flex-wrap gap-3 justify-center md:justify-start">

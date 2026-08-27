@@ -131,9 +131,10 @@ const Navbar = () => {
     const delayDebounceFn = setTimeout(async () => {
       setIsLiveSearching(true);
       try {
-        const data = await fetchAniList(LIVE_SEARCH_QUERY, {
+        const { data, error } = await fetchAniList(LIVE_SEARCH_QUERY, {
           search: trimmed,
         });
+        if (error) throw new Error(error);
         if (!isCancelled) {
           setLiveResults(data?.Page?.media || []);
         }

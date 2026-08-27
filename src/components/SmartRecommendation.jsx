@@ -60,7 +60,8 @@ const SmartRecommendation = () => {
       try {
         // Jika user belum login, tampilkan Anime Trending sebagai rekomendasi umum
         if (!user) {
-          const trendingData = await fetchAniList(TRENDING_QUERY);
+          const { data: trendingData, error: trendingError } = await fetchAniList(TRENDING_QUERY);
+          if (trendingError) throw new Error(trendingError);
           if (!isCancelled) {
             setRecommendations(trendingData?.Page?.media || []);
             setTopGenres(["Trending"]);
@@ -78,7 +79,8 @@ const SmartRecommendation = () => {
 
         // Jika Watchlist masih kosong, tampilkan Trending
         if (watchedIds.length === 0) {
-          const trendingData = await fetchAniList(TRENDING_QUERY);
+          const { data: trendingData, error: trendingError } = await fetchAniList(TRENDING_QUERY);
+          if (trendingError) throw new Error(trendingError);
           if (!isCancelled) {
             setRecommendations(trendingData?.Page?.media || []);
             setTopGenres(["Trending Saat Ini"]);
@@ -87,9 +89,10 @@ const SmartRecommendation = () => {
         }
 
         // FASE 2: Transformation (Ekstraksi Pola Genre - ambil max 50 ID)
-        const genreData = await fetchAniList(GENRE_EXTRACTION_QUERY, {
+        const { data: genreData, error: genreError } = await fetchAniList(GENRE_EXTRACTION_QUERY, {
           idIn: watchedIds.slice(0, 50),
         });
+        if (genreError) throw new Error(genreError);
         // Gunakan Web Worker untuk komputasi agar tidak memblokir UI Main Thread
         const sortedGenres = await new Promise((resolve) => {
           const worker = new Worker(new URL("../workers/recommendation.worker.js", import.meta.url), { type: "module" });
@@ -101,7 +104,8 @@ const SmartRecommendation = () => {
         });
 
         if (sortedGenres.length === 0) {
-          const trendingData = await fetchAniList(TRENDING_QUERY);
+          const { data: trendingData, error: trendingError } = await fetchAniList(TRENDING_QUERY);
+          if (trendingError) throw new Error(trendingError);
           if (!isCancelled) {
             setRecommendations(trendingData?.Page?.media || []);
             setTopGenres(["Trending"]);
@@ -114,14 +118,16 @@ const SmartRecommendation = () => {
         }
 
         // FASE 3: Data Mining (Cari Rekomendasi Akurat)
-        const recData = await fetchAniList(RECOMMENDATION_QUERY, {
+        const { data: recData, error: recError } = await fetchAniList(RECOMMENDATION_QUERY, {
           genreIn: sortedGenres,
           idNotIn: watchedIds.slice(0, 50),
         });
+        if (recError) throw new Error(recError);
 
         let recList = recData?.Page?.media || [];
         if (recList.length === 0) {
-          const trendingData = await fetchAniList(TRENDING_QUERY);
+          const { data: trendingData, error: trendingError } = await fetchAniList(TRENDING_QUERY);
+          if (trendingError) throw new Error(trendingError);
           recList = trendingData?.Page?.media || [];
           if (!isCancelled) setTopGenres(["Trending"]);
         }

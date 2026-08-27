@@ -76,10 +76,16 @@ const Home = () => {
 
     const loadDashboard = async () => {
       try {
-        const [airingData, trendingData] = await Promise.all([
+        const [airingResult, trendingResult] = await Promise.all([
           fetchAniList(AIRING_QUERY),
           fetchAniList(TRENDING_QUERY, { page: 1 }),
         ]);
+
+        if (airingResult.error) throw new Error(airingResult.error);
+        if (trendingResult.error) throw new Error(trendingResult.error);
+
+        const airingData = airingResult.data;
+        const trendingData = trendingResult.data;
 
         if (isCancelled) return;
         setAiringAnime(airingData?.Page?.airingSchedules || []);
@@ -94,12 +100,21 @@ const Home = () => {
             .gte("rating_pribadi", 8)
             .limit(1);
 
-          if (topAnimeError) console.error("Error fetching top anime for recommendations:", topAnimeError);
+          if (topAnimeError) {
+            console.error("Error fetching top anime for recommendations:", topAnimeError);
+            if (!isCancelled) {
+              setRecommendedAnime([]);
+              setBaseRecomTitle("");
+            }
+            return;
+          }
 
           if (topAnime && topAnime.length > 0 && !isCancelled) {
-            const recomData = await fetchAniList(RECOM_QUERY, {
+            const { data: recomData, error: recomError } = await fetchAniList(RECOM_QUERY, {
               id: topAnime[0].anilist_id,
             });
+            if (recomError) throw new Error(recomError);
+
             const animeNodes =
               recomData?.Media?.recommendations?.edges
                 ?.map((edge) => edge.node.mediaRecommendation)
@@ -135,7 +150,8 @@ const Home = () => {
     setIsFetchingMore(true);
     const nextPage = page + 1;
     try {
-      const data = await fetchAniList(TRENDING_QUERY, { page: nextPage });
+      const { data, error } = await fetchAniList(TRENDING_QUERY, { page: nextPage });
+      if (error) throw new Error(error);
       setTrendingAnime((prev) => [...prev, ...(data?.Page?.media || [])]);
       setHasNextPage(data?.Page?.pageInfo?.hasNextPage || false);
       setPage(nextPage);

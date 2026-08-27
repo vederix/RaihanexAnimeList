@@ -61,7 +61,10 @@ export default function CollectionDetail() {
           )
         );
 
-        const allMedia = results.flatMap((res) => res?.Page?.media || []);
+        const hasError = results.some(res => res.error);
+        if (hasError) throw new Error("Gagal mengambil data dari server");
+
+        const allMedia = results.flatMap((res) => res.data?.Page?.media || []);
         setAnimes(allMedia);
       } else {
         setAnimes([]);
