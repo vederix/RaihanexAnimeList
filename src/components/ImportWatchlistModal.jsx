@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../supabaseClient";
 import { FaTimes, FaCloudDownloadAlt, FaSpinner, FaCheckCircle } from "react-icons/fa";
 import toast from "react-hot-toast";
@@ -30,6 +31,23 @@ const ANILIST_USER_LIST_QUERY = `
 export default function ImportWatchlistModal({ isOpen, onClose, user }) {
   const [username, setUsername] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && !isLoading) onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen, isLoading, onClose]);
 
   if (!isOpen) return null;
 
@@ -118,19 +136,20 @@ export default function ImportWatchlistModal({ isOpen, onClose, user }) {
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in"
-      onClick={onClose}
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in"
+      onClick={!isLoading ? onClose : undefined}
     >
       <div
-        className="bg-gradient-to-b from-[#160404] via-[#0d0202] to-black border border-red-900/50 p-6 rounded-3xl w-full max-w-md relative shadow-[0_20px_60px_rgba(0,0,0,0.9)]"
+        className="bg-gradient-to-b from-[#160404] via-[#0d0202] to-black border border-red-900/50 p-6 rounded-3xl w-full max-w-md relative shadow-[0_20px_60px_rgba(0,0,0,0.9)] my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
           disabled={isLoading}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-2 bg-white/5 rounded-full hover:bg-red-600 cursor-pointer"
+          className="absolute top-4 right-4 text-white hover:bg-red-600 transition-colors p-2 bg-red-950/80 border border-red-500/40 rounded-full cursor-pointer active:scale-95 shadow-md disabled:opacity-50"
+          aria-label="Tutup"
         >
           <FaTimes size={14} />
         </button>
@@ -171,7 +190,7 @@ export default function ImportWatchlistModal({ isOpen, onClose, user }) {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-red-600/30 flex justify-center items-center gap-2 text-sm cursor-pointer"
+            className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-red-600/30 flex justify-center items-center gap-2 text-sm cursor-pointer active:scale-95"
           >
             {isLoading ? (
               <>
@@ -183,6 +202,7 @@ export default function ImportWatchlistModal({ isOpen, onClose, user }) {
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

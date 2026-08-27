@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../supabaseClient";
 import { FaTimes, FaPlus, FaCheck, FaLayerGroup } from "react-icons/fa";
 import toast from "react-hot-toast";
@@ -7,6 +8,23 @@ export default function CollectionModal({ isOpen, onClose, animeId, user }) {
   const [collections, setCollections] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen, onClose]);
 
   const fetchUserCollections = useCallback(async () => {
     setIsLoading(true);
@@ -65,10 +83,14 @@ export default function CollectionModal({ isOpen, onClose, animeId, user }) {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
-      <div className="bg-[#111] border border-white/10 p-6 rounded-2xl w-full max-w-md relative" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-1 bg-white/5 rounded-full">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in" onClick={onClose}>
+      <div className="bg-[#111] border border-white/10 p-6 rounded-2xl w-full max-w-md relative shadow-2xl my-auto" onClick={e => e.stopPropagation()}>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-2 bg-white/5 rounded-full hover:bg-red-600 cursor-pointer active:scale-95"
+          aria-label="Tutup"
+        >
           <FaTimes size={14} />
         </button>
         
@@ -89,7 +111,7 @@ export default function CollectionModal({ isOpen, onClose, animeId, user }) {
                   key={col.id}
                   onClick={() => toggleAnimeInCollection(col)}
                   disabled={isProcessing}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left cursor-pointer ${
                     isAdded ? "bg-red-500/20 border-red-500/50" : "bg-white/5 border-white/10 hover:border-red-500/30 hover:bg-white/10"
                   }`}
                 >
@@ -108,6 +130,7 @@ export default function CollectionModal({ isOpen, onClose, animeId, user }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

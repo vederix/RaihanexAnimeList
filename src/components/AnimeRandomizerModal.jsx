@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
   FaDice,
@@ -155,6 +156,23 @@ export default function AnimeRandomizerModal({ isOpen, onClose }) {
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   // Tentukan Grade / Rarity Kartu
@@ -182,34 +200,35 @@ export default function AnimeRandomizerModal({ isOpen, onClose }) {
 
   const rarity = result?.averageScore ? getRarityBadge(result.averageScore) : null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-fade-in"
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-gradient-to-b from-[#180505] via-[#0d0202] to-black border border-red-900/60 rounded-3xl w-full max-w-2xl overflow-hidden shadow-[0_25px_70px_rgba(220,38,38,0.25)] relative max-h-[92vh] flex flex-col"
+        className="bg-gradient-to-b from-[#180505] via-[#0d0202] to-black border border-red-900/60 rounded-3xl w-full max-w-2xl overflow-hidden shadow-[0_25px_70px_rgba(220,38,38,0.3)] relative max-h-[88vh] sm:max-h-[90vh] flex flex-col my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Modal */}
-        <div className="p-4 sm:p-5 border-b border-red-900/40 flex items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-red-950/40 via-black to-black">
-          <div className="flex items-center gap-3">
-            <div className="p-2 sm:p-2.5 bg-gradient-to-tr from-red-600 to-red-800 rounded-xl text-white shadow-lg shadow-red-600/40 flex-shrink-0">
+        <div className="p-4 sm:p-5 border-b border-red-900/40 flex items-center justify-between gap-3 bg-gradient-to-r from-red-950/40 via-black to-black">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 bg-gradient-to-tr from-red-600 to-red-800 rounded-xl text-white shadow-lg shadow-red-600/40 flex-shrink-0">
               <FaDice className="text-lg sm:text-xl animate-spin-slow" />
             </div>
-            <div>
-              <h3 className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-2 leading-tight">
+            <div className="truncate">
+              <h3 className="text-base sm:text-xl font-black text-white tracking-tight flex items-center gap-2 leading-tight">
                 GACHA ROULETTE
               </h3>
-              <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5">
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5 truncate">
                 Biarkan takdir memilihkan untukmu!
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="flex-shrink-0 text-gray-400 hover:text-white p-2.5 sm:p-2 rounded-full bg-white/10 sm:bg-white/5 hover:bg-red-600 transition-colors cursor-pointer"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-red-950/80 hover:bg-red-600 border border-red-500/40 text-white transition-all shadow-lg active:scale-90 cursor-pointer flex-shrink-0"
             aria-label="Tutup Modal"
+            title="Tutup Modal"
           >
             <FaTimes size={16} />
           </button>
@@ -375,22 +394,32 @@ export default function AnimeRandomizerModal({ isOpen, onClose }) {
           ) : null}
         </div>
 
-        {/* Footer Modal: Tombol Putar Lagi */}
-        <div className="p-4 border-t border-red-900/40 bg-black/60 flex items-center justify-between">
-          <span className="text-[11px] text-gray-500">
-            Spin ke-<strong>{spinCount}</strong>
-          </span>
-
+        {/* Footer Modal: Tombol Tutup & Putar Lagi */}
+        <div className="p-3.5 sm:p-4 border-t border-red-900/40 bg-black/80 backdrop-blur-md flex items-center justify-between gap-2.5">
           <button
-            onClick={handleSpin}
-            disabled={isSpinning}
-            className="bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 disabled:opacity-50 text-white font-black px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all shadow-[0_0_20px_rgba(234,179,8,0.4)] flex items-center gap-2 cursor-pointer"
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white border border-white/15 transition-all flex items-center gap-2 cursor-pointer active:scale-95 flex-shrink-0"
           >
-            <FaRedo className={isSpinning ? "animate-spin" : ""} />
-            {isSpinning ? "Sedang Mengocok..." : "Putar Lagi 🎲"}
+            <FaTimes size={12} /> Tutup
           </button>
+
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-gray-500 hidden sm:inline">
+              Spin ke-<strong>{spinCount}</strong>
+            </span>
+
+            <button
+              onClick={handleSpin}
+              disabled={isSpinning}
+              className="bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 disabled:opacity-50 text-white font-black px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm transition-all shadow-[0_0_20px_rgba(234,179,8,0.4)] flex items-center gap-2 cursor-pointer active:scale-95 flex-shrink-0"
+            >
+              <FaRedo className={isSpinning ? "animate-spin" : ""} />
+              {isSpinning ? "Mengocok..." : "Putar Lagi 🎲"}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

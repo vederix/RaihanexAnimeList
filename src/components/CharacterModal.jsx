@@ -1,26 +1,46 @@
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { FaTimes, FaMicrophoneAlt, FaUser } from "react-icons/fa";
 
 const CharacterModal = ({ characterEdge, onClose }) => {
+  useEffect(() => {
+    if (!characterEdge) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [characterEdge, onClose]);
+
   if (!characterEdge) return null;
 
   const char = characterEdge.node;
   const role = characterEdge.role;
   const va = characterEdge.voiceActors?.[0]; // Ambil VA utama bahasa Jepang
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       <div 
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/85 backdrop-blur-md"
         onClick={onClose}
       ></div>
       
-      <div className="relative w-full max-w-2xl bg-[#0a0202] border border-red-900/50 rounded-3xl shadow-[0_20px_60px_rgba(220,38,38,0.2)] overflow-hidden flex flex-col md:flex-row animate-fade-in">
+      <div className="relative w-full max-w-2xl bg-[#0a0202] border border-red-900/50 rounded-3xl shadow-[0_20px_60px_rgba(220,38,38,0.2)] overflow-hidden flex flex-col md:flex-row animate-fade-in my-auto">
         {/* Tombol Tutup */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 bg-black/50 text-white p-2 rounded-full hover:bg-red-600 transition-colors z-10 border border-white/10 cursor-pointer"
+          className="absolute top-4 right-4 bg-red-950/80 hover:bg-red-600 border border-red-500/40 text-white w-9 h-9 rounded-full flex items-center justify-center transition-all z-20 shadow-lg cursor-pointer active:scale-95"
+          aria-label="Tutup"
         >
-          <FaTimes />
+          <FaTimes size={14} />
         </button>
 
         {/* Sisi Karakter (Kiri) */}
@@ -68,7 +88,8 @@ const CharacterModal = ({ characterEdge, onClose }) => {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
