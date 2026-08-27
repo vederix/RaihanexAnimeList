@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { fetchAniList } from "../utils/anilist";
 import {
@@ -14,6 +14,7 @@ import {
 const SEASONAL_QUERY = `
   query ($season: MediaSeason, $seasonYear: Int, $page: Int) {
     Page(page: $page, perPage: 24) {
+      pageInfo { hasNextPage }
       media(season: $season, seasonYear: $seasonYear, type: ANIME, sort: POPULARITY_DESC) {
         id
         title { romaji english }
@@ -50,6 +51,11 @@ const Seasonal = () => {
   const [animeList, setAnimeList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Pagination states
+  const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
   const seasons = [
     {
       value: "WINTER",
@@ -85,12 +91,15 @@ const Seasonal = () => {
         });
         if (!isCancelled) {
           setAnimeList(data?.Page?.media || []);
+          setHasNextPage(data?.Page?.pageInfo?.hasNextPage || false);
+          setPage(1);
         }
       } catch (error) {
         console.error("Gagal memuat data anime musiman:", error);
       } finally {
         if (!isCancelled) {
           setIsLoading(false);
+          setIsFetchingMore(false);
         }
       }
     };
@@ -101,6 +110,47 @@ const Seasonal = () => {
       isCancelled = true;
     };
   }, [season, year]);
+
+  const handleLoadMore = useCallback(async () => {
+    const nextPage = page + 1;
+    setIsFetchingMore(true);
+    try {
+      const data = await fetchAniList(SEASONAL_QUERY, {
+        season: season,
+        seasonYear: year,
+        page: nextPage,
+      });
+      const newAnimes = data?.Page?.media || [];
+      const hasNext = data?.Page?.pageInfo?.hasNextPage || false;
+
+      setAnimeList((prev) => {
+        const prevIds = new Set(prev.map((a) => a.id));
+        const filteredNew = newAnimes.filter((a) => !prevIds.has(a.id));
+        return [...prev, ...filteredNew];
+      });
+      setHasNextPage(hasNext);
+      setPage(nextPage);
+    } catch {
+      console.error("Gagal memuat lebih banyak anime.");
+    } finally {
+      setIsFetchingMore(false);
+    }
+  }, [page, season, year]);
+
+  const observer = useRef();
+  const lastElementRef = useCallback(
+    (node) => {
+      if (isLoading || isFetchingMore) return;
+      if (observer.current) observer.current.disconnect();
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasNextPage) {
+          handleLoadMore();
+        }
+      });
+      if (node) observer.current.observe(node);
+    },
+    [isLoading, isFetchingMore, hasNextPage, handleLoadMore]
+  );
 
   const handleYearChange = (e) => {
     setIsLoading(true);
@@ -164,7 +214,7 @@ const Seasonal = () => {
         </div>
 
         {/* Grid Daftar Anime */}
-        {isLoading ? (
+        {isLoading && page === 1 ? (
           <div className="flex justify-center items-center py-20">
             <div className="animate-spin rounded-full h-14 w-14 border-t-2 border-b-2 border-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)]"></div>
           </div>
@@ -176,7 +226,8 @@ const Seasonal = () => {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 md:gap-6 animate-fade-in">
-            {animeList.map((anime) => (
+            {animeList.map((anime, index) => {
+              const content = (
               <Link
                 to={`/anime/${anime.id}`}
                 key={anime.id}
@@ -227,7 +278,24 @@ const Seasonal = () => {
                   </div>
                 </div>
               </Link>
-            ))}
+              );
+
+              if (animeList.length === index + 1) {
+                return (
+                  <div ref={lastElementRef} key={anime.id}>
+                    {content}
+                  </div>
+                );
+              }
+              return content;
+            })}
+          </div>
+        )}
+
+        {/* Loading Skeletons / Indicator at the bottom */}
+        {isFetchingMore && (
+          <div className="flex justify-center items-center py-10 mt-4">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-500"></div>
           </div>
         )}
       </div>

@@ -11,8 +11,10 @@ import {
   FaClock,
   FaCompass,
   FaPlay,
+  FaDice,
 } from "react-icons/fa";
 import { Link } from "react-router-dom";
+import AnimeRandomizerModal from "../components/AnimeRandomizerModal";
 
 const TRENDING_QUERY = `
   query ($page: Int) {
@@ -62,6 +64,7 @@ const Home = () => {
   const [airingAnime, setAiringAnime] = useState([]);
   const [recommendedAnime, setRecommendedAnime] = useState([]);
   const [baseRecomTitle, setBaseRecomTitle] = useState("");
+  const [isRandomizerOpen, setIsRandomizerOpen] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -84,12 +87,14 @@ const Home = () => {
         setHasNextPage(trendingData?.Page?.pageInfo?.hasNextPage || false);
 
         if (user) {
-          const { data: topAnime } = await supabase
+          const { data: topAnime, error: topAnimeError } = await supabase
             .from("watchlist")
             .select("mal_id")
             .eq("user_id", user.id)
             .gte("rating_pribadi", 8)
             .limit(1);
+
+          if (topAnimeError) console.error("Error fetching top anime for recommendations:", topAnimeError);
 
           if (topAnime && topAnime.length > 0 && !isCancelled) {
             const recomData = await fetchAniList(RECOM_QUERY, {
@@ -102,7 +107,13 @@ const Home = () => {
 
             setBaseRecomTitle(recomData?.Media?.title?.romaji || "");
             setRecommendedAnime(animeNodes);
+          } else if (!isCancelled) {
+            setRecommendedAnime([]);
+            setBaseRecomTitle("");
           }
+        } else if (!isCancelled) {
+          setRecommendedAnime([]);
+          setBaseRecomTitle("");
         }
       } catch (error) {
         console.error("Gagal memuat dasbor:", error);
@@ -174,16 +185,22 @@ const Home = () => {
             rekomendasi Anime menarik. Semua terintegrasi sempurna di RAIHANEX.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto items-center">
             <Link
               to="/search"
-              className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(220,38,38,0.4)] hover:shadow-[0_0_40px_rgba(220,38,38,0.6)] transition-all flex items-center justify-center gap-3 hover:-translate-y-1 cursor-pointer"
+              className="w-full sm:w-auto bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white px-8 py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(220,38,38,0.4)] hover:shadow-[0_0_40px_rgba(220,38,38,0.6)] transition-all flex items-center justify-center gap-3 hover:-translate-y-1 cursor-pointer"
             >
               <FaCompass className="text-xl" /> Mulai Petualangan
             </Link>
+            <button
+              onClick={() => setIsRandomizerOpen(true)}
+              className="w-full sm:w-auto bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 hover:-translate-y-1 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] border border-amber-400/40 cursor-pointer"
+            >
+              <FaDice className="text-xl animate-spin-slow text-yellow-200" /> Gacha Anime
+            </button>
             <Link
               to="/schedule"
-              className="bg-[#1a0505]/60 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-gray-300 hover:text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 hover:-translate-y-1 shadow-lg cursor-pointer"
+              className="w-full sm:w-auto bg-[#1a0505]/60 backdrop-blur-md border border-red-900/50 hover:border-red-500 text-gray-300 hover:text-white px-8 py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 hover:-translate-y-1 shadow-lg cursor-pointer"
             >
               <FaPlay className="text-red-500" /> Lihat Jadwal
             </Link>
@@ -336,6 +353,12 @@ const Home = () => {
           </div>
         )}
       </div>
+
+      {/* MODAL GACHA ROULETTE ANIME */}
+      <AnimeRandomizerModal
+        isOpen={isRandomizerOpen}
+        onClose={() => setIsRandomizerOpen(false)}
+      />
     </div>
   );
 };

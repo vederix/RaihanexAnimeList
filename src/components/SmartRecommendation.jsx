@@ -123,8 +123,15 @@ const SmartRecommendation = () => {
           idNotIn: watchedIds.slice(0, 50),
         });
 
+        let recList = recData?.Page?.media || [];
+        if (recList.length === 0) {
+          const trendingData = await fetchAniList(TRENDING_QUERY);
+          recList = trendingData?.Page?.media || [];
+          if (!isCancelled) setTopGenres(["Trending"]);
+        }
+
         if (!isCancelled) {
-          setRecommendations(recData?.Page?.media || []);
+          setRecommendations(recList);
         }
       } catch (error) {
         console.error("Gagal memproses algoritma rekomendasi:", error);

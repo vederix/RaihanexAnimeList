@@ -17,8 +17,14 @@ import {
   FaBars,
   FaSun,
   FaTimes,
+  FaFire,
+  FaList,
+  FaGlobe,
+  FaDice,
 } from "react-icons/fa";
 import { fetchAniList } from "../utils/anilist";
+import { showConfirmToast } from "../utils/confirmToast.jsx";
+import AnimeRandomizerModal from "./AnimeRandomizerModal";
 
 const LIVE_SEARCH_QUERY = `
   query ($search: String) {
@@ -42,6 +48,7 @@ const Navbar = () => {
   // States
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isRandomizerOpen, setIsRandomizerOpen] = useState(false);
   const [watchlistCount, setWatchlistCount] = useState(0);
 
   // Live Search States
@@ -96,6 +103,23 @@ const Navbar = () => {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const searchInputRef = useRef(null);
+
+  // Keyboard Shortcut Ctrl+K
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchExpanded(true);
+        setTimeout(() => {
+          searchInputRef.current?.focus();
+        }, 100);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // Debounced Live Search
@@ -153,36 +177,12 @@ const Navbar = () => {
 
   const handleLogoutClick = () => {
     setIsProfileOpen(false);
-    toast(
-      (t) => (
-        <div className="flex flex-col gap-3 p-2 w-full min-w-[250px]">
-          <span className="font-bold text-gray-800 text-center text-lg">
-            Keluar Akun?
-          </span>
-          <span className="text-sm text-gray-500 text-center mb-2">
-            Sesi kamu akan diakhiri.
-          </span>
-          <div className="flex justify-center gap-3">
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                executeLogout();
-              }}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold w-full shadow-lg shadow-red-500/30 transition-all"
-            >
-              Keluar
-            </button>
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-all"
-            >
-              Batal
-            </button>
-          </div>
-        </div>
-      ),
-      { duration: 5000 },
-    );
+    showConfirmToast({
+      title: "Keluar Akun?",
+      message: "Sesi kamu akan diakhiri.",
+      confirmText: "Keluar",
+      onConfirm: executeLogout,
+    });
   };
 
   const handleGlobalSearchSubmit = (e) => {
@@ -208,6 +208,9 @@ const Navbar = () => {
     { to: "/schedule", icon: <FaCalendarAlt size={18} />, label: "Jadwal" },
     { to: "/seasonal", icon: <FaSun size={18} />, label: "Musiman" },
     { to: "/search", icon: <FaCompass size={18} />, label: "Eksplor" },
+    { to: "/compare", icon: <FaFire size={18} />, label: "Komparasi" },
+    { to: "/collections", icon: <FaList size={18} />, label: "Koleksi" },
+    { to: "/community", icon: <FaGlobe size={18} />, label: "Komunitas" },
   ];
 
   return (
@@ -254,6 +257,19 @@ const Navbar = () => {
               </span>
             </div>
           ))}
+
+          {/* Tombol Gacha / Roulette Randomizer Desktop */}
+          <div className="relative group px-2 py-1">
+            <button
+              onClick={() => setIsRandomizerOpen(true)}
+              className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-600/30 to-red-600/30 hover:from-amber-600 hover:to-red-600 text-amber-400 hover:text-white border border-amber-500/40 hover:border-amber-400 transition-all flex items-center justify-center cursor-pointer shadow-sm hover:shadow-[0_0_15px_rgba(234,179,8,0.6)] group-hover:scale-105"
+            >
+              <FaDice size={15} />
+            </button>
+            <span className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-black/90 text-amber-300 text-[11px] font-black px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap border border-amber-500/40 shadow-xl">
+              🎲 Gacha Anime
+            </span>
+          </div>
 
           <div className="h-6 w-px bg-red-900/50 mx-1"></div>
 
@@ -471,6 +487,20 @@ const Navbar = () => {
             </Link>
           ))}
 
+          {/* Tombol Gacha Mobile */}
+          <button
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              setIsRandomizerOpen(true);
+            }}
+            className="flex items-center gap-4 px-4 py-3 rounded-xl font-bold text-amber-400 bg-amber-950/30 border border-amber-500/40 hover:bg-amber-900/40 transition-colors text-left cursor-pointer"
+          >
+            <div className="text-amber-400">
+              <FaDice size={18} />
+            </div>
+            <span>🎲 Gacha Anime (Randomizer)</span>
+          </button>
+
           {!user && (
             <Link
               to="/auth"
@@ -482,6 +512,12 @@ const Navbar = () => {
           )}
         </div>
       </div>
+
+      {/* MODAL GACHA ANIME ROULETTE */}
+      <AnimeRandomizerModal
+        isOpen={isRandomizerOpen}
+        onClose={() => setIsRandomizerOpen(false)}
+      />
     </nav>
   );
 };

@@ -3,7 +3,13 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { fetchAniList } from "../utils/anilist";
+import CharacterModal from "../components/CharacterModal";
+import ShareCardModal from "../components/ShareCardModal";
+import CollectionModal from "../components/CollectionModal";
+import ThemeSongsPlayer from "../components/ThemeSongsPlayer";
+import { generateGoogleCalendarUrl, downloadIcsFile } from "../utils/calendar";
 import toast from "react-hot-toast";
+import { showConfirmToast } from "../utils/confirmToast.jsx";
 import {
   FaStar,
   FaArrowLeft,
@@ -27,17 +33,24 @@ import {
   FaBookmark,
   FaPlay,
   FaCheck,
+  FaPlus,
+  FaMinus,
+  FaLayerGroup,
+  FaCalendarPlus,
+  FaBell,
+  FaDownload,
 } from "react-icons/fa";
 
-// 1. QUERY ANILIST DIPERLUAS (Termasuk Relations)
+// 1. QUERY ANILIST DIPERLUAS (Termasuk Relations, idMal, nextAiringEpisode)
 const DETAIL_QUERY = `
   query ($id: Int) {
     Media(id: $id, type: ANIME) {
-      id title { romaji english native } 
+      id idMal title { romaji english native } 
       coverImage { large extraLarge } bannerImage 
       averageScore status episodes duration season seasonYear format source description(asHtml: true) genres 
       studios(isMain: true) { nodes { name } }
       trailer { id site }
+      nextAiringEpisode { episode airingAt timeUntilAiring }
       characters(sort: [ROLE, RELEVANCE], perPage: 10) {
         edges { 
           role node { id name { full } image { large } } 
@@ -85,6 +98,7 @@ const AnimeDetail = () => {
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [watchlistStatus, setWatchlistStatus] = useState("Plan to Watch");
   const [userRating, setUserRating] = useState(0);
+  const [episodesWatched, setEpisodesWatched] = useState(0);
   const [isProcessingWatchlist, setIsProcessingWatchlist] = useState(false);
 
   // STATE ULASAN & FITUR KOMUNITAS
@@ -103,6 +117,11 @@ const AnimeDetail = () => {
 
   const [sortBy, setSortBy] = useState("terbaru");
   const [revealedSpoilers, setRevealedSpoilers] = useState([]);
+
+  // STATE MODAL
+  const [selectedCharacter, setSelectedCharacter] = useState(null);
+  const [showShareCard, setShowShareCard] = useState(false);
+  const [showCollectionModal, setShowCollectionModal] = useState(false);
 
   const fetchReviews = useCallback(async (animeId) => {
     try {
@@ -124,21 +143,25 @@ const AnimeDetail = () => {
         return;
       }
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("watchlist")
-          .select("id, status_tontonan, rating_pribadi")
+          .select("id, status_tontonan, rating_pribadi, episodes_watched, total_episodes")
           .eq("user_id", user.id)
           .eq("mal_id", animeId)
           .maybeSingle();
+
+        if (error) console.error("Gagal mengecek status watchlist:", error);
 
         if (data) {
           setIsInWatchlist(true);
           setWatchlistStatus(data.status_tontonan || "Plan to Watch");
           setUserRating(data.rating_pribadi || 0);
+          setEpisodesWatched(data.episodes_watched || 0);
         } else {
           setIsInWatchlist(false);
           setWatchlistStatus("Plan to Watch");
           setUserRating(0);
+          setEpisodesWatched(0);
         }
       } catch (err) {
         console.error("Gagal cek status watchlist:", err);
@@ -167,8 +190,6 @@ const AnimeDetail = () => {
         if (animeData?.title?.romaji) {
           document.title = `${animeData.title.romaji} - RAIHANEX`;
         }
-
-        window.scrollTo({ top: 0, behavior: "smooth" });
 
         if (animeData?.id && !isCancelled) {
           fetchReviews(animeData.id);
@@ -210,12 +231,15 @@ const AnimeDetail = () => {
           score: anime.averageScore ? anime.averageScore / 10 : 0,
           status_tontonan: "Plan to Watch",
           rating_pribadi: 0,
+          episodes_watched: 0,
+          total_episodes: anime.episodes || null,
         },
       ]);
       if (error) throw error;
       setIsInWatchlist(true);
       setWatchlistStatus("Plan to Watch");
       setUserRating(0);
+      setEpisodesWatched(0);
       toast.success("Ditambahkan ke Watchlist!");
     } catch {
       toast.error("Gagal menambahkan ke Watchlist.");
@@ -258,25 +282,76 @@ const AnimeDetail = () => {
     }
   };
 
-  const handleRemoveFromWatchlist = async () => {
+  const handleUpdateEpisodes = async (newEpisodes) => {
     if (!user) return;
-    setIsProcessingWatchlist(true);
+    if (newEpisodes < 0) return;
     try {
       const { error } = await supabase
         .from("watchlist")
-        .delete()
+        .update({ episodes_watched: newEpisodes })
         .eq("user_id", user.id)
         .eq("mal_id", anime.id);
 
       if (error) throw error;
-      setIsInWatchlist(false);
-      setWatchlistStatus("Plan to Watch");
-      setUserRating(0);
-      toast.success("Dihapus dari Watchlist!");
+      setEpisodesWatched(newEpisodes);
     } catch {
-      toast.error("Gagal menghapus dari Watchlist.");
-    } finally {
-      setIsProcessingWatchlist(false);
+      toast.error("Gagal menyimpan progress episode.");
+    }
+  };
+
+  const handleRemoveFromWatchlist = () => {
+    if (!user) return;
+    showConfirmToast({
+      title: "Hapus dari Watchlist?",
+      message: `"${anime?.title?.romaji}" akan dihapus beserta progres dan rating kamu.`,
+      confirmText: "Ya, Hapus",
+      onConfirm: async () => {
+        setIsProcessingWatchlist(true);
+        try {
+          const { error } = await supabase
+            .from("watchlist")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("mal_id", anime.id);
+
+          if (error) throw error;
+          setIsInWatchlist(false);
+          setWatchlistStatus("Plan to Watch");
+          setUserRating(0);
+          toast.success("Dihapus dari Watchlist!");
+        } catch {
+          toast.error("Gagal menghapus dari Watchlist.");
+          } finally {
+          setIsProcessingWatchlist(false);
+        }
+      },
+    });
+  };
+
+  // --- LOGIKA PENGINGAT JADWAL TAYANG (REMINDER) ---
+  const handleSaveReminder = async () => {
+    if (!user) {
+      return toast.error("Silakan masuk akun untuk menyimpan pengingat!");
+    }
+    if (!anime?.nextAiringEpisode) return;
+
+    try {
+      const { error } = await supabase.from("user_reminders").upsert([
+        {
+          user_id: user.id,
+          anime_id: anime.id,
+          anime_title: anime.title?.romaji || "Anime",
+          anime_image: anime.coverImage?.large || "",
+          episode: anime.nextAiringEpisode.episode,
+          airing_at: anime.nextAiringEpisode.airingAt,
+        },
+      ]);
+
+      if (error) throw error;
+      toast.success("Pengingat episode baru berhasil disimpan ke akun! 🔔");
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal menyimpan pengingat.");
     }
   };
 
@@ -296,6 +371,7 @@ const AnimeDetail = () => {
         mal_id: anime.id,
         user_email: user.email,
         user_name: displayName,
+        anime_title: anime.title?.romaji || anime.title?.english || "Anime",
         content: reviewInput.trim(),
         liked_by: [],
         is_spoiler: isSpoilerInput,
@@ -310,8 +386,9 @@ const AnimeDetail = () => {
       setReviewInput("");
       setIsSpoilerInput(false);
       toast.success("Ulasan berhasil diposting!");
-    } catch {
-      toast.error("Gagal mengirim ulasan.");
+    } catch (err) {
+      console.error("Gagal mengirim ulasan:", err);
+      toast.error(err?.message || "Gagal mengirim ulasan.");
     } finally {
       setIsSubmittingReview(false);
     }
@@ -327,6 +404,7 @@ const AnimeDetail = () => {
         mal_id: anime.id,
         user_email: user.email,
         user_name: displayName,
+        anime_title: anime.title?.romaji || anime.title?.english || "Anime",
         content: replyInput.trim(),
         liked_by: [],
         is_spoiler: false,
@@ -341,8 +419,9 @@ const AnimeDetail = () => {
       setReplyingTo(null);
       setReplyInput("");
       toast.success("Balasan terkirim!");
-    } catch {
-      toast.error("Gagal mengirim balasan.");
+    } catch (err) {
+      console.error("Gagal mengirim balasan:", err);
+      toast.error(err?.message || "Gagal mengirim balasan.");
     } finally {
       setIsSubmittingReply(false);
     }
@@ -368,36 +447,12 @@ const AnimeDetail = () => {
   };
 
   const confirmDeleteReview = (reviewId) => {
-    toast(
-      (t) => (
-        <div className="flex flex-col gap-3 p-2 w-full min-w-[250px]">
-          <span className="font-bold text-gray-800 text-center text-lg">
-            Hapus Ulasan?
-          </span>
-          <span className="text-sm text-gray-500 text-center mb-2">
-            Tindakan ini tidak dapat dibatalkan.
-          </span>
-          <div className="flex justify-center gap-3">
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                executeDeleteReview(reviewId);
-              }}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold w-full shadow-lg shadow-red-500/30 transition-all cursor-pointer"
-            >
-              Hapus
-            </button>
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold w-full transition-all cursor-pointer"
-            >
-              Batal
-            </button>
-          </div>
-        </div>
-      ),
-      { duration: 5000 },
-    );
+    showConfirmToast({
+      title: "Hapus Ulasan?",
+      message: "Tindakan ini tidak dapat dibatalkan.",
+      confirmText: "Hapus",
+      onConfirm: () => executeDeleteReview(reviewId),
+    });
   };
 
   const handleUpdateReview = async (reviewId) => {
@@ -765,6 +820,42 @@ const AnimeDetail = () => {
                       ))}
                     </select>
                   </div>
+
+                  {/* Tracker Episode */}
+                  <div className="flex flex-col gap-1 mt-1">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <FaTv className="text-blue-400 text-[10px]" /> Progress Episode
+                      </label>
+                      <span className="text-xs font-bold text-white bg-black/50 px-2 py-0.5 rounded-md border border-red-900/50">
+                        {episodesWatched} / {anime.episodes || "?"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleUpdateEpisodes(Math.max(0, episodesWatched - 1))}
+                        className="bg-black/60 hover:bg-red-900/40 text-gray-400 hover:text-white border border-red-900/50 rounded-lg p-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={episodesWatched <= 0}
+                      >
+                        <FaMinus size={10} />
+                      </button>
+                      
+                      <div className="flex-1 h-2 bg-black/60 rounded-full overflow-hidden border border-red-900/30">
+                        <div 
+                          className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
+                          style={{ width: `${anime.episodes ? (episodesWatched / anime.episodes) * 100 : (episodesWatched ? 100 : 0)}%` }}
+                        ></div>
+                      </div>
+
+                      <button
+                        onClick={() => handleUpdateEpisodes(episodesWatched + 1)}
+                        className="bg-black/60 hover:bg-green-900/40 text-gray-400 hover:text-white border border-green-900/50 rounded-lg p-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={anime.episodes && episodesWatched >= anime.episodes}
+                      >
+                        <FaPlus size={10} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <button
@@ -782,12 +873,33 @@ const AnimeDetail = () => {
                 </button>
               )}
 
-              <button
-                onClick={handleShare}
-                className="w-full py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/60 text-gray-300 border-red-900/40 hover:bg-red-900/40 hover:border-red-500/50 hover:text-white text-sm cursor-pointer"
-              >
-                <FaShareAlt /> Bagikan Tautan
-              </button>
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleShare}
+                    className="flex-1 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/60 text-gray-300 border-red-900/40 hover:bg-red-900/40 hover:border-red-500/50 hover:text-white text-sm cursor-pointer"
+                    title="Bagikan Tautan"
+                  >
+                    <FaShareAlt /> Tautan
+                  </button>
+                  <button
+                    onClick={() => setShowShareCard(true)}
+                    className="flex-1 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/60 text-gray-300 border-red-900/40 hover:bg-red-900/40 hover:border-red-500/50 hover:text-white text-sm cursor-pointer"
+                    title="Buat Kartu Gambar"
+                  >
+                    Kartu Visual
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!user) return toast.error("Kamu harus login dulu!");
+                    setShowCollectionModal(true);
+                  }}
+                  className="w-full py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 border bg-black/60 text-gray-300 border-red-900/40 hover:bg-red-900/40 hover:border-red-500/50 hover:text-white text-sm cursor-pointer"
+                >
+                  <FaLayerGroup /> Tambahkan ke Koleksi
+                </button>
+              </div>
             </div>
 
             {/* Detailed Info Table Glassmorphism */}
@@ -834,6 +946,77 @@ const AnimeDetail = () => {
                 </div>
               ))}
             </div>
+
+            {/* NEXT AIRING EPISODE & REMINDER WIDGET */}
+            {anime.nextAiringEpisode && (
+              <div className="bg-gradient-to-br from-red-950/80 via-[#1a0505] to-black/90 backdrop-blur-xl rounded-[2rem] p-6 border border-red-500/40 shadow-[0_10px_30px_rgba(220,38,38,0.25)] flex flex-col gap-4 animate-fade-in">
+                <div className="flex items-center gap-2 text-red-400 font-black text-sm uppercase tracking-wider">
+                  <FaBell className="animate-bounce" /> Jadwal Tayang Berikutnya
+                </div>
+
+                <div className="bg-black/60 rounded-2xl p-4 border border-red-900/40">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-gray-400 font-bold">Episode</span>
+                    <span className="text-white font-black text-base text-red-400">
+                      EP {anime.nextAiringEpisode.episode}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-400 font-medium">Waktu Rilis</span>
+                    <span className="text-gray-200 font-bold">
+                      {new Date(anime.nextAiringEpisode.airingAt * 1000).toLocaleDateString("id-ID", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <a
+                    href={generateGoogleCalendarUrl({
+                      title: anime.title?.romaji || "Anime",
+                      episode: anime.nextAiringEpisode.episode,
+                      airingAt: anime.nextAiringEpisode.airingAt,
+                      durationMinutes: anime.duration || 25,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 px-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs shadow-md shadow-red-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <FaCalendarPlus /> Tambah ke Google Calendar
+                  </a>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        downloadIcsFile({
+                          title: anime.title?.romaji || "Anime",
+                          episode: anime.nextAiringEpisode.episode,
+                          airingAt: anime.nextAiringEpisode.airingAt,
+                          durationMinutes: anime.duration || 25,
+                        })
+                      }
+                      className="flex-1 py-2 px-2 bg-black/60 hover:bg-white/10 text-gray-300 hover:text-white border border-red-900/40 rounded-xl font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      title="Unduh file .ics untuk Apple / Outlook"
+                    >
+                      <FaDownload size={10} /> Unduh .ICS
+                    </button>
+
+                    <button
+                      onClick={handleSaveReminder}
+                      className="flex-1 py-2 px-2 bg-black/60 hover:bg-red-900/30 text-gray-300 hover:text-red-400 border border-red-900/40 rounded-xl font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      title="Simpan pengingat ke database akun"
+                    >
+                      <FaBell size={10} /> Pasang Alarm
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 3. AREA UTAMA KANAN */}
@@ -963,9 +1146,10 @@ const AnimeDetail = () => {
                     const char = edge.node;
                     const va = edge.voiceActors?.[0];
                     return (
-                      <div
+                      <button
                         key={`${char.id}-${index}`}
-                        className="bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/30 rounded-2xl p-3 flex justify-between items-center transition-all hover:border-red-500/40 hover:bg-red-900/10 shadow-lg group"
+                        onClick={() => setSelectedCharacter(edge)}
+                        className="w-full text-left bg-[#1a0505]/60 backdrop-blur-xl border border-red-900/30 rounded-2xl p-3 flex justify-between items-center transition-all hover:border-red-500/40 hover:bg-red-900/10 shadow-lg group cursor-pointer"
                       >
                         <div className="flex items-center gap-3 w-1/2">
                           <img
@@ -999,12 +1183,19 @@ const AnimeDetail = () => {
                             />
                           </div>
                         )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
               </div>
             )}
+
+            {/* SOUNDTRACK & LAGU TEMA (OP & ED) */}
+            <ThemeSongsPlayer
+              idMal={anime.idMal}
+              animeId={anime.id}
+              animeTitle={anime.title?.romaji}
+            />
 
             {/* --- KOMUNITAS & ULASAN --- */}
             <div className="mt-8 border-t-2 border-red-900/30 pt-12 relative">
@@ -1127,6 +1318,31 @@ const AnimeDetail = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL KARAKTER */}
+      {selectedCharacter && (
+        <CharacterModal 
+          characterEdge={selectedCharacter}
+          onClose={() => setSelectedCharacter(null)}
+        />
+      )}
+
+      {/* MODAL SHARE CARD */}
+      {showShareCard && (
+        <ShareCardModal
+          anime={anime}
+          userRating={userRating}
+          onClose={() => setShowShareCard(false)}
+        />
+      )}
+
+      {/* MODAL KOLEKSI */}
+      <CollectionModal
+        isOpen={showCollectionModal}
+        onClose={() => setShowCollectionModal(false)}
+        animeId={anime.id}
+        user={user}
+      />
     </div>
   );
 };

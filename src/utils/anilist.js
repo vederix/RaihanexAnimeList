@@ -2,15 +2,17 @@
 const queryCache = new Map();
 const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 Menit TTL (Time To Live)
 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
- * Mengambil data dari AniList GraphQL API dengan In-Memory Caching
+ * Mengambil data dari AniList GraphQL API dengan In-Memory Caching & Auto-Retry 429
  * @param {string} query - Query GraphQL AniList
  * @param {object} variables - Variabel parameter query
- * @param {object} options - Opsi caching { bypassCache: boolean, ttl: number }
+ * @param {object} options - Opsi caching { bypassCache: boolean, ttl: number, retryCount: number }
  * @returns {Promise<object>} data hasil query
  */
 export const fetchAniList = async (query, variables = {}, options = {}) => {
-  const { bypassCache = false, ttl = DEFAULT_TTL_MS } = options;
+  const { bypassCache = false, ttl = DEFAULT_TTL_MS, retryCount = 0 } = options;
 
   // Generate cache key unik berdasarkan query dan variabel
   const cacheKey = JSON.stringify({ query: query.trim(), variables });
@@ -38,6 +40,13 @@ export const fetchAniList = async (query, variables = {}, options = {}) => {
       variables: variables,
     }),
   });
+
+  // Handle 429 Too Many Requests dengan auto-retry 1x
+  if (response.status === 429 && retryCount < 1) {
+    const retryAfter = parseInt(response.headers.get("Retry-After") || "1", 10);
+    await delay(Math.min(retryAfter * 1000, 1500));
+    return fetchAniList(query, variables, { ...options, retryCount: retryCount + 1 });
+  }
 
   const json = await response.json();
 

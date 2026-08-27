@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
-import { FaTrash, FaStar, FaPlay, FaCheck, FaClock } from "react-icons/fa";
+import { FaTrash, FaStar, FaPlay, FaCheck, FaClock, FaPlus, FaMinus } from "react-icons/fa";
 import toast from "react-hot-toast";
+import { showConfirmToast } from "../utils/confirmToast.jsx";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 const Watchlist = () => {
@@ -107,6 +108,31 @@ const Watchlist = () => {
     }
   };
 
+  // --- FUNGSI UPDATE EPISODES WATCHED ---
+  const updateEpisodesWatched = async (animeId, newEpisodesWatched) => {
+    if (!user) return;
+    if (newEpisodesWatched < 0) return;
+    try {
+      const { error } = await supabase
+        .from("watchlist")
+        .update({ episodes_watched: newEpisodesWatched })
+        .eq("user_id", user.id)
+        .eq("mal_id", animeId);
+
+      if (error) throw error;
+
+      setSavedAnime((prev) =>
+        prev.map((anime) =>
+          anime.mal_id === animeId
+            ? { ...anime, episodes_watched: newEpisodesWatched }
+            : anime,
+        ),
+      );
+    } catch {
+      toast.error("Gagal menyimpan progress episode.");
+    }
+  };
+
   // --- FUNGSI MENGHAPUS ANIME ---
   const executeDeleteSingle = async (animeId) => {
     if (!user) return;
@@ -127,33 +153,12 @@ const Watchlist = () => {
   };
 
   const handleRemoveItem = (animeId) => {
-    toast(
-      (t) => (
-        <div className="flex flex-col gap-4 p-1 w-full min-w-[240px]">
-          <span className="font-bold text-white text-center">
-            Hapus anime ini dari Watchlist?
-          </span>
-          <div className="flex justify-center gap-3">
-            <button
-              onClick={() => {
-                toast.dismiss(t.id);
-                executeDeleteSingle(animeId);
-              }}
-              className="bg-red-600 hover:bg-red-500 text-white px-5 py-2 rounded-lg text-sm font-bold border border-red-400/50 cursor-pointer"
-            >
-              Hapus
-            </button>
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="bg-slate-700 hover:bg-slate-600 text-white px-5 py-2 rounded-lg text-sm font-bold border border-slate-500/50 cursor-pointer"
-            >
-              Batal
-            </button>
-          </div>
-        </div>
-      ),
-      { duration: 8000, id: "delete-single" },
-    );
+    showConfirmToast({
+      title: "Hapus dari Watchlist?",
+      message: "Anime ini akan dihapus dari daftar tontonan kamu.",
+      confirmText: "Hapus",
+      onConfirm: () => executeDeleteSingle(animeId),
+    });
   };
 
   // --- PERSIAPAN DATA UNTUK GRAFIK & FILTER ---
@@ -415,6 +420,42 @@ const Watchlist = () => {
                           </option>
                         ))}
                       </select>
+                    </div>
+                  </div>
+
+                  {/* Tracker Episode */}
+                  <div className="flex flex-col gap-1 mt-1">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        Progress
+                      </label>
+                      <span className="text-xs font-bold text-white">
+                        {anime.episodes_watched || 0} / {anime.total_episodes || "?"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateEpisodesWatched(anime.mal_id, Math.max(0, (anime.episodes_watched || 0) - 1))}
+                        className="bg-black/60 hover:bg-red-900/40 text-gray-400 hover:text-white border border-red-900/50 rounded-lg p-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!anime.episodes_watched || anime.episodes_watched <= 0}
+                      >
+                        <FaMinus size={10} />
+                      </button>
+                      
+                      <div className="flex-1 h-2 bg-black/60 rounded-full overflow-hidden border border-red-900/30">
+                        <div 
+                          className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
+                          style={{ width: `${anime.total_episodes ? ((anime.episodes_watched || 0) / anime.total_episodes) * 100 : (anime.episodes_watched ? 100 : 0)}%` }}
+                        ></div>
+                      </div>
+
+                      <button
+                        onClick={() => updateEpisodesWatched(anime.mal_id, (anime.episodes_watched || 0) + 1)}
+                        className="bg-black/60 hover:bg-green-900/40 text-gray-400 hover:text-white border border-green-900/50 rounded-lg p-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={anime.total_episodes && (anime.episodes_watched || 0) >= anime.total_episodes}
+                      >
+                        <FaPlus size={10} />
+                      </button>
                     </div>
                   </div>
                 </div>

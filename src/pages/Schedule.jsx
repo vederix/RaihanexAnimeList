@@ -5,8 +5,11 @@ import {
   FaClock,
   FaHome,
   FaPlayCircle,
+  FaCalendarPlus,
+  FaDownload,
 } from "react-icons/fa";
 import { fetchAniList } from "../utils/anilist";
+import { generateGoogleCalendarUrl, downloadIcsFile } from "../utils/calendar";
 
 const SCHEDULE_QUERY = `
   query ($page: Int, $startTime: Int, $endTime: Int) {
@@ -31,6 +34,7 @@ const Schedule = () => {
   const [scheduleData, setScheduleData] = useState([]);
   const [activeTab, setActiveTab] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
 
   // Generate 7 Hari Penuh
   const days = Array.from({ length: 7 }).map((_, i) => {
@@ -40,63 +44,56 @@ const Schedule = () => {
     return d;
   });
 
-  useEffect(() => {
-    let isCancelled = false;
+  const fetchSchedule = async () => {
+    setIsLoading(true);
+    setIsError(false);
+    try {
+      const startTime = Math.floor(days[0].getTime() / 1000);
+      const endTime = Math.floor(
+        new Date(days[6]).setHours(23, 59, 59, 999) / 1000,
+      );
 
-    const fetchSchedule = async () => {
-      setIsLoading(true);
-      try {
-        const startTime = Math.floor(days[0].getTime() / 1000);
-        const endTime = Math.floor(
-          new Date(days[6]).setHours(23, 59, 59, 999) / 1000,
-        );
+      let allSchedules = [];
+      let page = 1;
+      let hasNextPage = true;
 
-        let allSchedules = [];
-        let page = 1;
-        let hasNextPage = true;
-
-        // Safety limit: max 5 halaman (250 anime) untuk mencegah rate-limit 429 dari AniList
-        while (hasNextPage && page <= 5) {
-          const data = await fetchAniList(SCHEDULE_QUERY, {
-            page,
-            startTime,
-            endTime,
-          });
-          allSchedules = [
-            ...allSchedules,
-            ...(data?.Page?.airingSchedules || []),
-          ];
-          hasNextPage = data?.Page?.pageInfo?.hasNextPage || false;
-          page++;
-        }
-
-        const grouped = days.map((day) => {
-          const startOfDay = Math.floor(day.getTime() / 1000);
-          const endOfDay = Math.floor(
-            new Date(day).setHours(23, 59, 59, 999) / 1000,
-          );
-          return allSchedules.filter(
-            (item) => item.airingAt >= startOfDay && item.airingAt <= endOfDay,
-          );
+      // Safety limit: max 5 halaman (250 anime) untuk mencegah rate-limit 429 dari AniList
+      while (hasNextPage && page <= 5) {
+        const data = await fetchAniList(SCHEDULE_QUERY, {
+          page,
+          startTime,
+          endTime,
         });
-
-        if (!isCancelled) {
-          setScheduleData(grouped);
-        }
-      } catch (error) {
-        console.error("Gagal memuat jadwal:", error);
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false);
-        }
+        allSchedules = [
+          ...allSchedules,
+          ...(data?.Page?.airingSchedules || []),
+        ];
+        hasNextPage = data?.Page?.pageInfo?.hasNextPage || false;
+        page++;
       }
-    };
 
+      const grouped = days.map((day) => {
+        const startOfDay = Math.floor(day.getTime() / 1000);
+        const endOfDay = Math.floor(
+          new Date(day).setHours(23, 59, 59, 999) / 1000,
+        );
+        return allSchedules.filter(
+          (item) => item.airingAt >= startOfDay && item.airingAt <= endOfDay,
+        );
+      });
+
+      setScheduleData(grouped);
+    } catch (error) {
+      console.error("Gagal memuat jadwal:", error);
+      setIsError(true);
+      setScheduleData([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchSchedule();
-
-    return () => {
-      isCancelled = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -189,7 +186,25 @@ const Schedule = () => {
               </div>
             </div>
           </div>
-        ) : scheduleData[activeTab]?.length === 0 ? (
+        ) : isError ? (
+          <div className="bg-gradient-to-br from-[#1a0505]/40 to-black/60 backdrop-blur-2xl border border-red-900/30 rounded-3xl py-24 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] px-4">
+            <div className="bg-red-900/20 w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-5 border border-red-900/50 shadow-inner">
+              <FaClock className="text-4xl text-red-500/70" />
+            </div>
+            <h3 className="text-xl md:text-2xl font-black text-white mb-2">
+              Gagal Memuat Jadwal
+            </h3>
+            <p className="text-gray-400 text-sm max-w-sm mx-auto mb-6">
+              Terjadi kendala koneksi ke server AniList. Silakan coba kembali.
+            </p>
+            <button
+              onClick={fetchSchedule}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-colors shadow-lg cursor-pointer text-sm"
+            >
+              Muat Ulang Jadwal
+            </button>
+          </div>
+        ) : !scheduleData[activeTab] || scheduleData[activeTab].length === 0 ? (
           <div className="bg-gradient-to-br from-[#1a0505]/40 to-black/60 backdrop-blur-2xl border border-red-900/30 rounded-3xl py-32 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
             <div className="bg-red-900/20 w-24 h-24 mx-auto rounded-full flex items-center justify-center mb-6 border border-red-900/50 shadow-inner">
               <FaClock className="text-5xl text-red-500/70" />
@@ -252,7 +267,7 @@ const Schedule = () => {
                       </h3>
                     </div>
 
-                    <div className="mt-3 flex items-center justify-between">
+                    <div className="mt-3 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 bg-black/60 px-2 py-1 rounded-md border border-red-900/30 shadow-inner">
                         <FaStar className="text-yellow-400 text-[9px] drop-shadow-[0_0_5px_rgba(250,204,21,0.8)]" />
                         <span className="text-white text-[10px] md:text-xs font-bold">
@@ -260,6 +275,44 @@ const Schedule = () => {
                             ? (item.media.averageScore / 10).toFixed(1)
                             : "N/A"}
                         </span>
+                      </div>
+
+                      {/* Quick Add to Calendar Action */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.open(
+                              generateGoogleCalendarUrl({
+                                title: item.media?.title?.romaji || "Anime",
+                                episode: item.episode,
+                                airingAt: item.airingAt,
+                              }),
+                              "_blank"
+                            );
+                          }}
+                          className="p-1.5 rounded-lg bg-red-600/30 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 transition-all cursor-pointer shadow-sm"
+                          title="Tambah ke Google Calendar"
+                        >
+                          <FaCalendarPlus size={11} />
+                        </button>
+
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            downloadIcsFile({
+                              title: item.media?.title?.romaji || "Anime",
+                              episode: item.episode,
+                              airingAt: item.airingAt,
+                            });
+                          }}
+                          className="p-1.5 rounded-lg bg-black/60 hover:bg-white/10 text-gray-400 hover:text-white border border-red-900/30 transition-all cursor-pointer shadow-sm"
+                          title="Unduh Pengingat .ICS"
+                        >
+                          <FaDownload size={10} />
+                        </button>
                       </div>
                     </div>
                   </div>

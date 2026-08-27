@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import AnimeCard from "../components/AnimeCard";
 import SkeletonCard from "../components/SkeletonCard";
@@ -133,7 +133,7 @@ const Search = () => {
     setIsLoading(true);
   };
 
-  const handleLoadMore = async () => {
+  const handleLoadMore = useCallback(async () => {
     const nextPage = page + 1;
     setIsFetchingMore(true);
     try {
@@ -149,7 +149,11 @@ const Search = () => {
       const newAnimes = data?.Page?.media || [];
       const hasNext = data?.Page?.pageInfo?.hasNextPage || false;
 
-      setSearchResults((prev) => [...prev, ...newAnimes]);
+      setSearchResults((prev) => {
+        const prevIds = new Set(prev.map(a => a.id));
+        const filteredNew = newAnimes.filter(a => !prevIds.has(a.id));
+        return [...prev, ...filteredNew];
+      });
       setHasNextPage(hasNext);
       setPage(nextPage);
     } catch {
@@ -157,7 +161,22 @@ const Search = () => {
     } finally {
       setIsFetchingMore(false);
     }
-  };
+  }, [page, urlQuery, genre, format, season, year]);
+
+  const observer = useRef();
+  const lastElementRef = useCallback(
+    (node) => {
+      if (isLoading || isFetchingMore) return;
+      if (observer.current) observer.current.disconnect();
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasNextPage) {
+          handleLoadMore();
+        }
+      });
+      if (node) observer.current.observe(node);
+    },
+    [isLoading, isFetchingMore, hasNextPage, handleLoadMore]
+  );
 
   const clearFilters = () => {
     setGenre("");
@@ -367,14 +386,22 @@ const Search = () => {
             {/* Loading Skeletons */}
             {isLoading && page === 1
               ? [...Array(10)].map((_, i) => <SkeletonCard key={i} />)
-              : searchResults.map((anime) => (
-                  <AnimeCard key={anime.id} anime={anime} />
-                ))}
+              : searchResults.map((anime, index) => {
+                  if (searchResults.length === index + 1) {
+                    return (
+                      <div ref={lastElementRef} key={anime.id}>
+                        <AnimeCard anime={anime} />
+                      </div>
+                    );
+                  } else {
+                    return <AnimeCard key={anime.id} anime={anime} />;
+                  }
+                })}
           </div>
         )}
 
         {/* --- TOMBOL LOAD MORE --- */}
-        {hasNextPage && !isLoading && (
+        {hasNextPage && (
           <div className="flex justify-center mt-12 mb-8">
             <button
               onClick={handleLoadMore}

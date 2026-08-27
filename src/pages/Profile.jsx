@@ -15,19 +15,24 @@ import {
   FaPen,
   FaTimes,
   FaCheck,
+  FaCloudDownloadAlt,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import SmartRecommendation from "../components/SmartRecommendation";
+import ImportWatchlistModal from "../components/ImportWatchlistModal";
+import { showConfirmToast } from "../utils/confirmToast.jsx";
 
 const Profile = () => {
   const { user, logout, displayName, avatarUrl, updateProfile } = useAuth();
   const [stats, setStats] = useState({ totalWatchlist: 0, totalReviews: 0 });
   const [recentActivity, setRecentActivity] = useState([]);
+  const [userBadges, setUserBadges] = useState([]);
   const [activeTab, setActiveTab] = useState("statistik"); // 'statistik' atau 'aktivitas'
   const [isLoading, setIsLoading] = useState(true);
   
   // State Edit Profile Modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [newDisplayName, setNewDisplayName] = useState(displayName);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -44,24 +49,67 @@ const Profile = () => {
 
       try {
         // 1. Ambil Jumlah Watchlist
-        const { count: watchlistCount } = await supabase
+        const { count: watchlistCount, error: watchlistError } = await supabase
           .from("watchlist")
           .select("*", { count: "exact", head: true })
           .eq("user_id", user.id);
+          
+        if (watchlistError) console.error("Error watchlist count:", watchlistError);
 
         // 2. Ambil Jumlah Ulasan
-        const { count: reviewCount } = await supabase
+        const { count: reviewCount, error: reviewError } = await supabase
           .from("reviews")
           .select("*", { count: "exact", head: true })
           .eq("user_id", user.id);
 
+        if (reviewError) console.error("Error review count:", reviewError);
+
         // 3. Ambil 4 Watchlist Terakhir
-        const { data: recentWatchlist } = await supabase
+        const { data: recentWatchlist, error: recentError } = await supabase
           .from("watchlist")
           .select("*")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(4);
+          
+        if (recentError) console.error("Error recent watchlist:", recentError);
+        
+        // 4. Badges System
+        let finalBadges = [];
+        try {
+          const { data: allBadges, error: badgeError } = await supabase.from("badges").select("*");
+          if (badgeError) throw badgeError;
+          
+          const { data: myBadges, error: myBadgeError } = await supabase.from("user_badges").select("badge_id").eq("user_id", user.id);
+          if (myBadgeError) throw myBadgeError;
+          
+          const myBadgeIds = myBadges?.map(b => b.badge_id) || [];
+          const toAward = [];
+          
+          if (allBadges) {
+            for (const b of allBadges) {
+              if (myBadgeIds.includes(b.id)) continue;
+              if (b.requirement_type === "reviews" && (reviewCount || 0) >= b.requirement_value) toAward.push({ user_id: user.id, badge_id: b.id });
+              if (b.requirement_type === "watchlist" && (watchlistCount || 0) >= b.requirement_value) toAward.push({ user_id: user.id, badge_id: b.id });
+            }
+          }
+          
+          if (toAward.length > 0) {
+            const { error: insertError } = await supabase.from("user_badges").insert(toAward);
+            if (insertError) throw insertError;
+            toast.success(`Selamat! Kamu mendapatkan ${toAward.length} lencana baru!`, { icon: '🏆' });
+          }
+          
+          const { data: earnedData, error: earnedError } = await supabase
+            .from("user_badges")
+            .select("*, badges(*)")
+            .eq("user_id", user.id);
+          if (earnedError) throw earnedError;
+            
+          finalBadges = earnedData || [];
+        } catch (err) {
+          console.error("Gagal memuat badges:", err);
+        }
 
         if (!isCancelled) {
           setStats({
@@ -69,6 +117,7 @@ const Profile = () => {
             totalReviews: reviewCount || 0,
           });
           setRecentActivity(recentWatchlist || []);
+          setUserBadges(finalBadges.map((b) => b.badges).filter(Boolean));
           setNewDisplayName(displayName);
         }
       } catch (error) {
@@ -88,14 +137,21 @@ const Profile = () => {
     };
   }, [user, navigate, displayName]);
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      toast.success("Berhasil keluar akun!");
-      navigate("/");
-    } catch {
-      toast.error("Gagal logout.");
-    }
+  const handleLogout = () => {
+    showConfirmToast({
+      title: "Keluar Akun?",
+      message: "Sesi login kamu akan diakhiri.",
+      confirmText: "Keluar",
+      onConfirm: async () => {
+        try {
+          await logout();
+          toast.success("Berhasil keluar akun!");
+          navigate("/");
+        } catch {
+          toast.error("Gagal logout.");
+        }
+      },
+    });
   };
 
   const handleSaveProfile = async (e) => {
@@ -223,7 +279,7 @@ const Profile = () => {
               </div>
 
               {/* Progress Bar Gamifikasi */}
-              <div className="bg-black/40 border border-red-900/30 p-4 rounded-2xl mb-8">
+              <div className="bg-black/40 border border-red-900/30 p-4 rounded-2xl mb-6">
                 <div className="flex justify-between text-xs font-bold mb-2">
                   <span className="text-gray-400">
                     Progres Level Selanjutnya
@@ -240,6 +296,29 @@ const Profile = () => {
                 </div>
               </div>
 
+              {/* Koleksi Lencana (Badges) */}
+              {userBadges.length > 0 && (
+                <div className="mb-8">
+                  <h3 className="text-sm font-bold text-gray-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                    <FaTrophy className="text-yellow-500" /> Lencana Prestasi
+                  </h3>
+                  <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+                    {userBadges.map((badge, idx) => (
+                      <div key={idx} className="flex flex-col items-center group relative">
+                        <div className="w-12 h-12 flex items-center justify-center bg-black/60 border border-yellow-500/50 rounded-full shadow-[0_0_15px_rgba(234,179,8,0.2)] text-2xl group-hover:scale-110 transition-transform">
+                          {badge.icon_url || '🏅'}
+                        </div>
+                        {/* Tooltip */}
+                        <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-3 py-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20 border border-white/10">
+                          <strong className="block text-yellow-400">{badge.name}</strong>
+                          {badge.description}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Tombol Aksi */}
               <div className="flex flex-wrap gap-3 justify-center md:justify-start">
                 <button
@@ -247,6 +326,12 @@ const Profile = () => {
                   className="bg-black/50 hover:bg-red-900/30 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all border border-red-900/50 flex items-center gap-2 cursor-pointer hover:border-red-500"
                 >
                   <FaPen size={12} /> Edit Profil
+                </button>
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all border border-blue-500/50 flex items-center gap-2 cursor-pointer"
+                >
+                  <FaCloudDownloadAlt size={16} /> Impor dari AniList
                 </button>
                 <button
                   onClick={handleLogout}
@@ -414,6 +499,13 @@ const Profile = () => {
         )}
         <SmartRecommendation />
       </div>
+      
+      {/* MODAL IMPORT ANILIST */}
+      <ImportWatchlistModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        user={user}
+      />
     </div>
   );
 };

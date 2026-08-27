@@ -4,6 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
 import PageLoader from "./components/PageLoader";
 import ErrorBoundary from "./components/ErrorBoundary";
+import ScrollToTop from "./components/ScrollToTop";
 import { Toaster } from "react-hot-toast";
 
 // Route-Level Code Splitting (Lazy Loading)
@@ -15,10 +16,15 @@ const Watchlist = lazy(() => import("./pages/Watchlist"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Schedule = lazy(() => import("./pages/Schedule"));
 const Seasonal = lazy(() => import("./pages/Seasonal"));
+const Compare = lazy(() => import("./pages/Compare"));
+const Collections = lazy(() => import("./pages/Collections"));
+const CollectionDetail = lazy(() => import("./pages/CollectionDetail"));
+const CommunityFeed = lazy(() => import("./pages/CommunityFeed"));
 
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <AuthProvider>
         <ErrorBoundary>
           <div className="min-h-screen bg-[#050505] text-white selection:bg-red-500/40 relative overflow-hidden">
@@ -55,6 +61,10 @@ function App() {
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/schedule" element={<Schedule />} />
                   <Route path="/seasonal" element={<Seasonal />} />
+                  <Route path="/compare" element={<Compare />} />
+                  <Route path="/collections" element={<Collections />} />
+                  <Route path="/collection/:id" element={<CollectionDetail />} />
+                  <Route path="/community" element={<CommunityFeed />} />
                 </Routes>
               </Suspense>
             </main>
