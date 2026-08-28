@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   FaStar,
   FaClock,
@@ -30,8 +30,12 @@ const SCHEDULE_QUERY = `
 `;
 
 const Schedule = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dayParam = parseInt(searchParams.get("day"), 10);
+  const initialTab = !isNaN(dayParam) && dayParam >= 0 && dayParam < 7 ? dayParam : 0;
+
   const [scheduleData, setScheduleData] = useState([]);
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
 
@@ -96,6 +100,27 @@ const Schedule = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sinkronisasi tab saat navigasi history (browser Back / Forward)
+  useEffect(() => {
+    const dayQuery = parseInt(searchParams.get("day"), 10);
+    if (!isNaN(dayQuery) && dayQuery >= 0 && dayQuery < 7) {
+      setActiveTab(dayQuery);
+    } else {
+      setActiveTab(0);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (index) => {
+    setActiveTab(index);
+    const newParams = new URLSearchParams(searchParams);
+    if (index === 0) {
+      newParams.delete("day");
+    } else {
+      newParams.set("day", index.toString());
+    }
+    setSearchParams(newParams, { replace: true });
+  };
+
   const getDayName = (date, index) => {
     if (index === 0) return "Hari Ini";
     if (index === 1) return "Besok";
@@ -144,7 +169,7 @@ const Schedule = () => {
             return (
               <button
                 key={index}
-                onClick={() => setActiveTab(index)}
+                onClick={() => handleTabChange(index)}
                 className={`snap-center flex-shrink-0 flex items-center gap-3 px-6 py-3.5 rounded-2xl font-bold transition-all duration-300 border shadow-md group cursor-pointer active:scale-95 ${
                   isActive
                     ? "bg-gradient-to-r from-red-700 to-red-600 text-white border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.5)] scale-[1.02]"
