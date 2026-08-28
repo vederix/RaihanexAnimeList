@@ -77,9 +77,9 @@ const Search = () => {
   const [hasNextPage, setHasNextPage] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
-  // Jalankan pencarian jika URL param atau filter berubah
+  // Jalankan pencarian jika URL param atau filter berubah dengan AbortController
   useEffect(() => {
-    let isCancelled = false;
+    const controller = new AbortController();
 
     const executeSearch = async () => {
       try {
@@ -93,19 +93,21 @@ const Search = () => {
           seasonYear: year ? parseInt(year, 10) : undefined,
         };
 
-        const { data, error } = await fetchAniList(SEARCH_QUERY, variables);
-        if (error) throw new Error(error);
-        if (!isCancelled) {
+        const { data, error, isAborted } = await fetchAniList(SEARCH_QUERY, variables, {
+          signal: controller.signal,
+        });
+        if (error && !isAborted) throw new Error(error);
+        if (!controller.signal.aborted) {
           setSearchResults(data?.Page?.media || []);
           setHasNextPage(data?.Page?.pageInfo?.hasNextPage || false);
           setPage(1);
         }
       } catch {
-        if (!isCancelled) {
+        if (!controller.signal.aborted) {
           setApiError("Gagal mengambil data dari server. Silakan coba lagi.");
         }
       } finally {
-        if (!isCancelled) {
+        if (!controller.signal.aborted) {
           setIsLoading(false);
           setIsFetchingMore(false);
         }
@@ -115,7 +117,7 @@ const Search = () => {
     executeSearch();
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
   }, [urlQuery, genre, format, season, year]);
 
@@ -410,20 +412,16 @@ const Search = () => {
           </div>
         )}
 
-        {/* --- TOMBOL LOAD MORE --- */}
-        {hasNextPage && (
-          <div className="flex justify-center mt-12 mb-8">
-            <button
-              onClick={handleLoadMore}
-              disabled={isFetchingMore}
-              className="btn-secondary px-8 py-3.5 font-bold flex items-center gap-2"
-            >
-              {isFetchingMore ? (
-                <span className="animate-pulse">Memuat...</span>
-              ) : (
-                "Muat Lebih Banyak ↓"
-              )}
-            </button>
+        {/* --- INFINITE SCROLL LOADER & END STATE --- */}
+        {isFetchingMore && (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]"></div>
+          </div>
+        )}
+
+        {!hasNextPage && searchResults.length > 0 && !isLoading && (
+          <div className="text-center py-12 text-gray-500 text-xs font-bold uppercase tracking-widest">
+            Semua hasil pencarian telah ditampilkan
           </div>
         )}
       </div>

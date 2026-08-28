@@ -30,10 +30,13 @@ function App() {
       <AuthProvider>
         <ErrorBoundary>
           <div className="min-h-screen bg-[#050101] text-white selection:bg-red-500/40 selection:text-white relative overflow-hidden">
-            {/* Multi-layered Glassmorphism Ambient Light Orbs */}
-            <div className="fixed top-[-15%] left-[-10%] w-[50vw] h-[50vw] bg-red-600/10 rounded-full blur-[140px] pointer-events-none animate-pulse-glow z-0"></div>
-            <div className="fixed bottom-[-15%] right-[-10%] w-[45vw] h-[45vw] bg-red-900/15 rounded-full blur-[120px] pointer-events-none animate-pulse-glow z-0"></div>
-            <div className="fixed top-[40%] right-[15%] w-[25vw] h-[25vw] bg-red-500/5 rounded-full blur-[100px] pointer-events-none z-0"></div>
+            {/* Mobile-Optimized Lightweight Ambient Light (Zero GPU Animation Overhead on Mobile) */}
+            <div className="sm:hidden fixed inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(220,38,38,0.15),rgba(255,255,255,0))] pointer-events-none z-0"></div>
+
+            {/* Desktop-Only Multi-layered Glassmorphism Ambient Light Orbs */}
+            <div className="hidden sm:block fixed top-[-15%] left-[-10%] w-[50vw] h-[50vw] bg-red-600/10 rounded-full blur-[140px] pointer-events-none animate-pulse-glow z-0"></div>
+            <div className="hidden sm:block fixed bottom-[-15%] right-[-10%] w-[45vw] h-[45vw] bg-red-900/15 rounded-full blur-[120px] pointer-events-none animate-pulse-glow z-0"></div>
+            <div className="hidden sm:block fixed top-[40%] right-[15%] w-[25vw] h-[25vw] bg-red-500/5 rounded-full blur-[100px] pointer-events-none z-0"></div>
 
             <Navbar />
 

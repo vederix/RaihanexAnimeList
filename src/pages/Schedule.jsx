@@ -4,7 +4,6 @@ import {
   FaStar,
   FaClock,
   FaHome,
-  FaPlayCircle,
   FaCalendarPlus,
   FaDownload,
 } from "react-icons/fa";
@@ -231,38 +230,35 @@ const Schedule = () => {
                 <Link
                   to={`/anime/${item.media?.id}`}
                   key={item.id}
-                  className="group relative glass-card glass-card-hover rounded-2xl overflow-hidden shadow-xl flex flex-col h-full hover:-translate-y-1.5"
+                  className="group relative bg-gradient-to-b from-[#180505] to-[#0d0202] border border-red-900/35 hover:border-red-500/60 rounded-2xl overflow-hidden shadow-lg flex flex-col h-full hover:-translate-y-1.5 transition-all duration-300 will-change-transform"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-t from-red-900/0 to-red-900/0 group-hover:from-red-900/20 transition-all duration-500 z-10 pointer-events-none"></div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-red-900/0 to-red-900/0 group-hover:from-red-900/20 transition-all duration-300 z-10 pointer-events-none"></div>
 
                   {/* Badge Waktu & Episode */}
-                  <div className="absolute top-2.5 right-2.5 bg-red-600/90 backdrop-blur-md text-white text-[10px] md:text-xs font-bold px-2.5 py-1 md:py-1.5 rounded-lg shadow-md z-20 flex items-center gap-1.5 border border-red-400/50 group-hover:bg-red-500 transition-colors">
+                  <div className="absolute top-2.5 right-2.5 bg-red-600/90 text-white text-[10px] md:text-xs font-bold px-2.5 py-1 md:py-1.5 rounded-lg shadow-md z-20 flex items-center gap-1.5 border border-red-400/50 group-hover:bg-red-500 transition-colors">
                     <FaClock size={10} /> {timeString}
                   </div>
 
-                  <div className="absolute top-2.5 left-2.5 bg-black/80 backdrop-blur-md text-white text-[9px] md:text-[10px] font-black px-2.5 py-1 md:py-1.5 rounded-lg shadow-md z-20 border border-red-900/60 uppercase tracking-widest">
+                  <div className="absolute top-2.5 left-2.5 bg-black/80 text-white text-[9px] md:text-[10px] font-black px-2.5 py-1 md:py-1.5 rounded-lg shadow-md z-20 border border-red-900/60 uppercase tracking-widest">
                     EP {item.episode}
                   </div>
 
-                  {/* Ikon Play Hover */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110">
-                    <FaPlayCircle className="text-white/80 text-5xl drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]" />
-                  </div>
-
-                  {/* Cover Image */}
-                  <div className="relative aspect-[3/4] overflow-hidden bg-black/50">
+                  {/* Cover Image with Zero-CLS Aspect Ratio */}
+                  <div className="relative aspect-[3/4] overflow-hidden bg-[#0a0202]">
                     <img
                       src={item.media?.coverImage?.large}
                       alt={item.media?.title?.romaji || "Cover"}
-                      className="w-full h-full object-cover group-hover:scale-110 group-hover:brightness-75 transition-all duration-700"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#050101] via-[#050101]/40 to-transparent opacity-95"></div>
                   </div>
 
                   {/* Info Text */}
-                  <div className="p-4 flex flex-col flex-grow justify-between relative z-20 -mt-12">
+                  <div className="p-4 flex flex-col flex-grow justify-between relative z-20 -mt-12 bg-gradient-to-b from-transparent via-[#080101]/90 to-[#080101]">
                     <div>
-                      <h3 className="text-white font-black text-xs md:text-sm line-clamp-2 leading-snug drop-shadow-lg group-hover:text-red-400 transition-colors">
+                      <h3 className="text-white font-black text-xs md:text-sm line-clamp-2 leading-snug drop-shadow-lg group-hover:text-red-400 transition-colors duration-200">
                         {item.media?.title?.romaji}
                       </h3>
                     </div>

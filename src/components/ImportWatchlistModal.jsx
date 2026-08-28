@@ -28,7 +28,7 @@ const ANILIST_USER_LIST_QUERY = `
   }
 `;
 
-export default function ImportWatchlistModal({ isOpen, onClose, user }) {
+export default function ImportWatchlistModal({ isOpen, onClose, user, onImportSuccess }) {
   const [username, setUsername] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -124,10 +124,10 @@ export default function ImportWatchlistModal({ isOpen, onClose, user }) {
       );
       onClose();
 
-      // Refresh halaman untuk memperbarui data
-      setTimeout(() => {
-        window.location.reload();
-      }, 1200);
+      // Perbarui data komponen secara reaktif tanpa hard page reload
+      if (onImportSuccess) {
+        onImportSuccess();
+      }
     } catch (err) {
       console.error("Import error:", err);
       toast.error(err.message || "Gagal mengimpor daftar dari AniList.");

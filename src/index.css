@@ -4,7 +4,7 @@
 @theme {
   --font-sans: 'Plus Jakarta Sans', 'Outfit', sans-serif;
   --font-display: 'Outfit', sans-serif;
-  
+
   --animate-fade-in: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   --animate-scale-up: scale-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   --animate-slide-up: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -14,46 +14,99 @@
   --animate-spin-reverse: spin-reverse 3s linear infinite;
   --animate-pulse-glow: pulse-glow 3s ease-in-out infinite;
   --animate-float: float 4s ease-in-out infinite;
-  
+
   @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
+
   @keyframes scale-up {
-    from { opacity: 0; transform: scale(0.94); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.94);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
+
   @keyframes slide-up {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
+
   @keyframes page-enter {
     from {
       opacity: 0;
       transform: translateY(12px) scale(0.99);
       filter: blur(4px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0) scale(1);
       filter: blur(0px);
     }
   }
+
   @keyframes skeleton-shimmer {
-    from { transform: translateX(-150%); }
-    to { transform: translateX(150%); }
+    from {
+      transform: translateX(-150%);
+    }
+
+    to {
+      transform: translateX(150%);
+    }
   }
+
   @keyframes spin-reverse {
-    from { transform: rotate(360deg); }
-    to { transform: rotate(0deg); }
+    from {
+      transform: rotate(360deg);
+    }
+
+    to {
+      transform: rotate(0deg);
+    }
   }
+
   @keyframes pulse-glow {
-    0%, 100% { opacity: 0.4; transform: scale(1); }
-    50% { opacity: 0.8; transform: scale(1.05); }
+
+    0%,
+    100% {
+      opacity: 0.4;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 0.8;
+      transform: scale(1.05);
+    }
   }
+
   @keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-6px); }
+
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-6px);
+    }
   }
 }
 
@@ -100,20 +153,29 @@ body {
   box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-/* Glass Input & Search Bar */
-.glass-input {
+/* Glass Input & Standard Input Field */
+.glass-input,
+.input-field {
   background: rgba(15, 3, 3, 0.75);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(185, 28, 28, 0.35);
+  border-radius: 0.75rem;
   color: #ffffff;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.glass-input:focus {
-  background: rgba(25, 5, 5, 0.9);
+.glass-input:focus,
+.input-field:focus {
+  background: rgba(25, 5, 5, 0.95);
   border-color: rgba(239, 68, 68, 0.7);
   box-shadow: 0 0 20px rgba(239, 68, 68, 0.3), inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
   outline: none;
+}
+
+.input-field option {
+  background-color: #0d0202;
+  color: #ffffff;
 }
 
 /* Floating Glass Dropdown */
@@ -213,14 +275,17 @@ body {
   width: 7px;
   height: 7px;
 }
+
 ::-webkit-scrollbar-track {
   background: #060101;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #3b0707;
   border-radius: 9999px;
   border: 1px solid rgba(220, 38, 38, 0.15);
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #7f1d1d;
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
@@ -230,6 +295,7 @@ body {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;

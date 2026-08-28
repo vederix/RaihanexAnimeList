@@ -12,8 +12,32 @@ import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 
-// Cache in-memory agar tidak memanggil API berulang-ulang
+// Bounded LRU Cache in-memory agar tidak memanggil API berulang-ulang dan mencegah memory leak
+const MAX_THEME_CACHE_ENTRIES = 100;
 const themeCache = new Map();
+
+function getCachedTheme(idMal) {
+  if (!idMal || !themeCache.has(idMal)) return null;
+  const entry = themeCache.get(idMal);
+  // Refresh posisi LRU (paling baru)
+  themeCache.delete(idMal);
+  themeCache.set(idMal, entry);
+  return entry;
+}
+
+function setCachedTheme(idMal, data) {
+  if (!idMal || !data) return;
+  if (themeCache.has(idMal)) {
+    themeCache.delete(idMal);
+  } else if (themeCache.size >= MAX_THEME_CACHE_ENTRIES) {
+    // Buang entri paling awal / tertua
+    const oldestKey = themeCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      themeCache.delete(oldestKey);
+    }
+  }
+  themeCache.set(idMal, data);
+}
 
 export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
   const { user } = useAuth();
@@ -41,9 +65,9 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
         return;
       }
 
-      // 1. Cek Cache
-      if (themeCache.has(idMal)) {
-        const cached = themeCache.get(idMal);
+      // 1. Cek Cache Bounded LRU
+      const cached = getCachedTheme(idMal);
+      if (cached) {
         if (isMounted) {
           setOpenings(cached.openings);
           setEndings(cached.endings);
@@ -72,28 +96,29 @@ export default function ThemeSongsPlayer({ idMal, animeId, animeTitle }) {
               ? eds
               : [`Official Ending Theme - ${animeTitle || "Anime"}`];
 
-          themeCache.set(idMal, { openings: finalOps, endings: finalEds });
+          setCachedTheme(idMal, { openings: finalOps, endings: finalEds });
 
           if (isMounted) {
             setOpenings(finalOps);
             setEndings(finalEds);
           }
         } else {
-          // Jikan API sedang timeout/504 -> Gunakan fallback
+          // Jikan API sedang error/504 -> Tampilkan fallback
           const fallbackOps = [`Official Opening Theme - ${animeTitle || "Anime"}`];
           const fallbackEds = [`Official Ending Theme - ${animeTitle || "Anime"}`];
-          themeCache.set(idMal, { openings: fallbackOps, endings: fallbackEds });
 
           if (isMounted) {
             setOpenings(fallbackOps);
             setEndings(fallbackEds);
           }
         }
-      } catch {
-        // Fallback jika network timeout / offline
+      } catch (err) {
+        // Fallback jika network timeout / offline / dibatalkan
+        if (err?.name !== "AbortError") {
+          console.warn("Gagal mengambil data lagu tema:", err?.message || err);
+        }
         const fallbackOps = [`Official Opening Theme - ${animeTitle || "Anime"}`];
         const fallbackEds = [`Official Ending Theme - ${animeTitle || "Anime"}`];
-        themeCache.set(idMal, { openings: fallbackOps, endings: fallbackEds });
 
         if (isMounted) {
           setOpenings(fallbackOps);

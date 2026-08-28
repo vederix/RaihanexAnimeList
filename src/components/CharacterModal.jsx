@@ -28,11 +28,11 @@ const CharacterModal = ({ characterEdge, onClose }) => {
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
-      <div 
+      <div
         className="absolute inset-0 bg-black/85 backdrop-blur-md animate-fade-in"
         onClick={onClose}
       ></div>
-      
+
       <div className="relative w-full max-w-2xl glass-card rounded-3xl overflow-hidden flex flex-col md:flex-row animate-scale-up my-auto shadow-[0_30px_60px_rgba(0,0,0,0.9)]">
         {/* Tombol Tutup */}
         <button
@@ -47,9 +47,9 @@ const CharacterModal = ({ characterEdge, onClose }) => {
         <div className="flex-1 p-6 md:p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-red-900/30 bg-gradient-to-br from-black/40 to-transparent">
           <div className="relative mb-4">
             <div className="absolute inset-0 bg-red-600 blur-xl opacity-20 rounded-full animate-pulse"></div>
-            <img 
-              src={char.image?.large} 
-              alt={char.name?.full} 
+            <img
+              src={char.image?.large}
+              alt={char.name?.full}
               className="w-32 h-40 md:w-40 md:h-52 object-cover rounded-2xl relative z-10 border-2 border-red-900/50 shadow-[0_0_20px_rgba(220,38,38,0.3)]"
             />
           </div>
@@ -67,9 +67,9 @@ const CharacterModal = ({ characterEdge, onClose }) => {
             <>
               <div className="relative mb-4">
                 <div className="absolute inset-0 bg-blue-600 blur-xl opacity-20 rounded-full animate-pulse"></div>
-                <img 
-                  src={va.image?.large} 
-                  alt={va.name?.full} 
+                <img
+                  src={va.image?.large}
+                  alt={va.name?.full}
                   className="w-24 h-24 md:w-32 md:h-32 object-cover rounded-full relative z-10 border-2 border-blue-900/50 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
                 />
               </div>

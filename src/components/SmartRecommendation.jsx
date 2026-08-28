@@ -93,14 +93,75 @@ const SmartRecommendation = () => {
           idIn: watchedIds.slice(0, 50),
         });
         if (genreError) throw new Error(genreError);
-        // Gunakan Web Worker untuk komputasi agar tidak memblokir UI Main Thread
+
+        // Komputasi genre dominan dengan Web Worker + Fallback Sinkron + Timeout Safety
         const sortedGenres = await new Promise((resolve) => {
-          const worker = new Worker(new URL("../workers/recommendation.worker.js", import.meta.url), { type: "module" });
-          worker.onmessage = (e) => {
-            resolve(e.data.sortedGenres);
-            worker.terminate();
+          // Helper fallback sinkron jika worker gagal/timeout
+          const fallbackCompute = () => {
+            try {
+              const media = genreData?.Page?.media || [];
+              const genreCounts = {};
+              media.forEach((anime) => {
+                if (Array.isArray(anime?.genres)) {
+                  anime.genres.forEach((g) => {
+                    if (g) genreCounts[g] = (genreCounts[g] || 0) + 1;
+                  });
+                }
+              });
+              return Object.entries(genreCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 2)
+                .map((entry) => entry[0]);
+            } catch {
+              return [];
+            }
           };
-          worker.postMessage({ watchedIds, genreData });
+
+          try {
+            if (typeof Worker === "undefined") {
+              return resolve(fallbackCompute());
+            }
+
+            const worker = new Worker(
+              new URL("../workers/recommendation.worker.js", import.meta.url),
+              { type: "module" }
+            );
+
+            const timer = setTimeout(() => {
+              try {
+                worker.terminate();
+              } catch (termErr) {
+                console.warn("Worker termination error:", termErr);
+              }
+              resolve(fallbackCompute());
+            }, 3000); // 3 detik safety timeout
+
+            worker.onmessage = (e) => {
+              clearTimeout(timer);
+              try {
+                worker.terminate();
+              } catch (termErr) {
+                console.warn("Worker termination error:", termErr);
+              }
+              resolve(e.data?.sortedGenres || fallbackCompute());
+            };
+
+            worker.onerror = (err) => {
+              clearTimeout(timer);
+              console.warn("SmartRecommendation worker error, beralih ke fallback:", err);
+              try {
+                worker.terminate();
+              } catch (termErr) {
+                console.warn("Worker termination error:", termErr);
+              }
+              resolve(fallbackCompute());
+            };
+
+            worker.postMessage({ watchedIds, genreData });
+          } catch (workerErr) {
+            console.warn("Gagal inisialisasi worker:", workerErr);
+            resolve(fallbackCompute());
+          }
         });
 
         if (sortedGenres.length === 0) {

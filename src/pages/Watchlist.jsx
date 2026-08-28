@@ -375,15 +375,17 @@ const Watchlist = () => {
           {filteredAnime.map((anime) => (
             <div
               key={anime.anilist_id}
-              className="glass-card glass-card-hover rounded-2xl overflow-hidden relative flex flex-col"
+              className="bg-gradient-to-b from-[#180505] to-[#0d0202] border border-red-900/35 hover:border-red-500/60 shadow-lg hover:shadow-[0_10px_25px_rgba(220,38,38,0.25)] rounded-2xl overflow-hidden relative flex flex-col transition-all duration-300 transform hover:-translate-y-1.5 will-change-transform"
             >
               {/* Gambar Cover */}
-              <div className="relative h-48 sm:h-64 overflow-hidden bg-black">
+              <div className="relative h-48 sm:h-64 overflow-hidden bg-[#0a0202]">
                 <Link to={`/anime/${anime.anilist_id}`}>
                   <img
                     src={anime.image_url}
                     alt={anime.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent opacity-90"></div>
                 </Link>

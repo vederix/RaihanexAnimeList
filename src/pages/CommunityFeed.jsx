@@ -1,16 +1,57 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { Link } from "react-router-dom";
 import { FaGlobe, FaCommentDots, FaUserCircle } from "react-icons/fa";
+import { fetchAniList } from "../utils/anilist";
 
 import ApiErrorState from "../components/ApiErrorState";
+
+const FEED_TITLES_QUERY = `
+  query ($ids: [Int]) {
+    Page(perPage: 50) {
+      media(id_in: $ids, type: ANIME) {
+        id
+        title { romaji english }
+      }
+    }
+  }
+`;
 
 export default function CommunityFeed() {
   const [activities, setActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  async function fetchRecent() {
+  // Helper untuk melengkapi judul anime pada data review lama yang belum memiliki kolom anime_title
+  const enrichMissingTitles = useCallback(async (items) => {
+    if (!items || items.length === 0) return items;
+    const missingIds = items
+      .filter((act) => !act.anime_title && act.anilist_id)
+      .map((act) => act.anilist_id);
+
+    if (missingIds.length === 0) return items;
+
+    try {
+      const uniqueIds = [...new Set(missingIds)];
+      const { data } = await fetchAniList(FEED_TITLES_QUERY, { ids: uniqueIds });
+      const mediaList = data?.Page?.media || [];
+      const titleMap = new Map();
+      mediaList.forEach((m) => {
+        titleMap.set(m.id, m.title?.romaji || m.title?.english || `Anime #${m.id}`);
+      });
+
+      return items.map((act) => {
+        if (!act.anime_title && titleMap.has(act.anilist_id)) {
+          return { ...act, anime_title: titleMap.get(act.anilist_id) };
+        }
+        return act;
+      });
+    } catch {
+      return items;
+    }
+  }, []);
+
+  const fetchRecent = useCallback(async () => {
     setErrorMsg(null);
     try {
       const { data, error } = await supabase
@@ -19,19 +60,22 @@ export default function CommunityFeed() {
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
-      if (data) setActivities(data);
+      if (data) {
+        const enriched = await enrichMissingTitles(data);
+        setActivities(enriched);
+      }
     } catch (err) {
       console.error("Gagal memuat aktivitas:", err);
       setErrorMsg("Gagal memuat aktivitas komunitas. Coba lagi.");
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [enrichMissingTitles]);
 
   // Initial Fetch
   useEffect(() => {
     fetchRecent();
-  }, []);
+  }, [fetchRecent]);
 
   // Supabase Realtime Subscription
   useEffect(() => {
@@ -40,10 +84,17 @@ export default function CommunityFeed() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "reviews" },
-        (payload) => {
+        async (payload) => {
           const newReview = payload.new;
-          setActivities((prev) => 
-            prev.some(r => r.id === newReview.id) ? prev : [newReview, ...prev].slice(0, 50)
+          let enrichedReview = newReview;
+          if (!enrichedReview.anime_title && enrichedReview.anilist_id) {
+            const [singleEnriched] = await enrichMissingTitles([enrichedReview]);
+            if (singleEnriched) enrichedReview = singleEnriched;
+          }
+          setActivities((prev) =>
+            prev.some((r) => r.id === enrichedReview.id)
+              ? prev
+              : [enrichedReview, ...prev].slice(0, 50)
           );
         }
       )
@@ -52,7 +103,7 @@ export default function CommunityFeed() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [enrichMissingTitles]);
 
   return (
     <div className="pt-24 min-h-screen px-4 pb-12 max-w-4xl mx-auto">

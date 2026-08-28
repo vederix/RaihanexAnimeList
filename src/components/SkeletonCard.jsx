@@ -3,7 +3,7 @@ const SkeletonCard = () => {
     <div className="glass-card overflow-hidden rounded-2xl flex flex-col h-full relative group border border-red-900/30 shadow-lg">
       {/* Iridescent Crimson Shimmer Overlay */}
       <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-red-500/15 to-transparent animate-skeleton-shimmer z-20 pointer-events-none"></div>
-      
+
       {/* Image placeholder */}
       <div className="relative aspect-[3/4] bg-gradient-to-b from-[#120303] to-[#080101] overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center opacity-20">

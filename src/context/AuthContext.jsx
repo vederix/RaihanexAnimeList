@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 
 export const AuthContext = createContext({
@@ -49,20 +49,27 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const displayName =
-    user?.user_metadata?.display_name ||
-    (user?.email ? user.email.split("@")[0] : "User");
+  const displayName = useMemo(() => {
+    return (
+      user?.user_metadata?.display_name ||
+      (user?.email ? user.email.split("@")[0] : "User")
+    );
+  }, [user]);
 
-  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=dc2626&color=fff&size=128&bold=true`;
+  const avatarUrl = useMemo(() => {
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(
+      displayName
+    )}&background=dc2626&color=fff&size=128&bold=true`;
+  }, [displayName]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setUser(null);
     setSession(null);
-  };
+  }, []);
 
-  const updateProfile = async (newDisplayName) => {
+  const updateProfile = useCallback(async (newDisplayName) => {
     const { data, error } = await supabase.auth.updateUser({
       data: { display_name: newDisplayName },
     });
@@ -71,17 +78,20 @@ export const AuthProvider = ({ children }) => {
       setUser(data.user);
     }
     return data;
-  };
+  }, []);
 
-  const value = {
-    user,
-    session,
-    loading,
-    displayName,
-    avatarUrl,
-    logout,
-    updateProfile,
-  };
+  const value = useMemo(
+    () => ({
+      user,
+      session,
+      loading,
+      displayName,
+      avatarUrl,
+      logout,
+      updateProfile,
+    }),
+    [user, session, loading, displayName, avatarUrl, logout, updateProfile]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

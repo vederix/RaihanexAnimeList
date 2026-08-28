@@ -120,35 +120,39 @@ const Navbar = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Debounced Live Search
+  // Debounced Live Search dengan AbortController
   useEffect(() => {
     const trimmed = globalSearch.trim();
     if (trimmed.length < 3) {
       return;
     }
 
-    let isCancelled = false;
+    const controller = new AbortController();
     const delayDebounceFn = setTimeout(async () => {
       setIsLiveSearching(true);
       try {
-        const { data, error } = await fetchAniList(LIVE_SEARCH_QUERY, {
-          search: trimmed,
-        });
-        if (error) throw new Error(error);
-        if (!isCancelled) {
+        const { data, error, isAborted } = await fetchAniList(
+          LIVE_SEARCH_QUERY,
+          { search: trimmed },
+          { signal: controller.signal }
+        );
+        if (error && !isAborted) throw new Error(error);
+        if (!controller.signal.aborted) {
           setLiveResults(data?.Page?.media || []);
         }
       } catch (err) {
-        console.error("Live search error:", err);
+        if (!controller.signal.aborted) {
+          console.error("Live search error:", err);
+        }
       } finally {
-        if (!isCancelled) {
+        if (!controller.signal.aborted) {
           setIsLiveSearching(false);
         }
       }
-    }, 500);
+    }, 400);
 
     return () => {
-      isCancelled = true;
+      controller.abort();
       clearTimeout(delayDebounceFn);
     };
   }, [globalSearch]);
@@ -191,7 +195,6 @@ const Navbar = () => {
       setGlobalSearch("");
       setLiveResults([]);
       setIsSearchExpanded(false);
-      setIsSearchExpanded(false);
     }
   };
 
@@ -229,14 +232,13 @@ const Navbar = () => {
     <>
       {/* TOP NAVBAR (Desktop & Mobile) */}
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-          isScrolled
-            ? "bg-[#050101]/80 backdrop-blur-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] border-b border-red-900/30 py-3"
-            : "bg-gradient-to-b from-black/90 via-black/50 to-transparent py-4 lg:py-5"
-        }`}
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled
+          ? "bg-[#050101]/80 backdrop-blur-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] border-b border-red-900/30 py-3"
+          : "bg-gradient-to-b from-black/90 via-black/50 to-transparent py-4 lg:py-5"
+          }`}
       >
         <div className="container mx-auto px-4 lg:px-8 flex justify-between items-center relative gap-4">
-          
+
           {/* LOGO (KIRI) */}
           <Link
             to="/"
@@ -278,7 +280,7 @@ const Navbar = () => {
 
           {/* KANAN: PENCARIAN & PROFIL */}
           <div className="flex items-center gap-3 lg:gap-5 flex-shrink-0 relative z-50" ref={searchContainerRef}>
-            
+
             {/* GACHA ROULETTE (Mobile + Desktop) */}
             <button
               onClick={() => setIsRandomizerOpen(true)}
@@ -287,7 +289,7 @@ const Navbar = () => {
             >
               <FaDice size={16} />
             </button>
-            
+
             {/* PENCARIAN MOBILE (TOGGLE) */}
             <button
               onClick={() => setIsSearchExpanded(!isSearchExpanded)}
@@ -524,7 +526,7 @@ const Navbar = () => {
               </Link>
             );
           })}
-          
+
           {/* PROFILE / MENU BUTTON FOR MOBILE */}
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
@@ -607,7 +609,7 @@ const Navbar = () => {
                 <FaSignOutAlt /> Keluar Akun
               </button>
             )}
-            
+
             {/* Safe Area spacing */}
             <div className="h-4"></div>
           </div>

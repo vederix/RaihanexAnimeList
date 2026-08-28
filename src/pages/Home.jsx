@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import AnimeCard from "../components/AnimeCard";
 import SkeletonCard from "../components/SkeletonCard";
 import { fetchAniList } from "../utils/anilist";
@@ -14,7 +14,9 @@ import {
   FaDice,
 } from "react-icons/fa";
 import { Link } from "react-router-dom";
-import AnimeRandomizerModal from "../components/AnimeRandomizerModal";
+
+// Code-splitting: Lazy load modal Gacha agar bundle utama Home lebih ramping
+const AnimeRandomizerModal = lazy(() => import("../components/AnimeRandomizerModal"));
 
 const TRENDING_QUERY = `
   query ($page: Int) {
@@ -60,6 +62,7 @@ const RECOM_QUERY = `
 
 const Home = () => {
   const { user } = useAuth();
+  const userId = user?.id;
   const [trendingAnime, setTrendingAnime] = useState([]);
   const [airingAnime, setAiringAnime] = useState([]);
   const [recommendedAnime, setRecommendedAnime] = useState([]);
@@ -92,12 +95,15 @@ const Home = () => {
         setTrendingAnime(trendingData?.Page?.media || []);
         setHasNextPage(trendingData?.Page?.pageInfo?.hasNextPage || false);
 
-        if (user) {
+        if (userId) {
+          // Query deterministik: pilih anime dengan rating tertinggi dan paling baru ditambahkan
           const { data: topAnime, error: topAnimeError } = await supabase
             .from("watchlist")
             .select("anilist_id")
-            .eq("user_id", user.id)
+            .eq("user_id", userId)
             .gte("rating_pribadi", 8)
+            .order("rating_pribadi", { ascending: false })
+            .order("created_at", { ascending: false })
             .limit(1);
 
           if (topAnimeError) {
@@ -131,7 +137,9 @@ const Home = () => {
           setBaseRecomTitle("");
         }
       } catch (error) {
-        console.error("Gagal memuat dasbor:", error);
+        if (!isCancelled) {
+          console.error("Gagal memuat dasbor:", error);
+        }
       } finally {
         if (!isCancelled) {
           setIsLoading(false);
@@ -144,9 +152,10 @@ const Home = () => {
     return () => {
       isCancelled = true;
     };
-  }, [user]);
+  }, [userId]);
 
-  const handleLoadMore = async () => {
+  const handleLoadMore = useCallback(async () => {
+    if (isFetchingMore || !hasNextPage) return;
     setIsFetchingMore(true);
     const nextPage = page + 1;
     try {
@@ -160,7 +169,7 @@ const Home = () => {
     } finally {
       setIsFetchingMore(false);
     }
-  };
+  }, [page, hasNextPage, isFetchingMore]);
 
   const formatTimeAiring = (seconds) => {
     if (!seconds || seconds <= 0) return "Tayang sekarang";
@@ -176,19 +185,19 @@ const Home = () => {
 
   return (
     <div className="pb-16 relative z-10">
-      {/* --- HERO SECTION ULTIMATE --- */}
-      <div className="relative flex flex-col items-center justify-center min-h-[55vh] text-center mb-16 overflow-hidden pt-20">
-        {/* Orbs Background Animasi */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-red-600/20 rounded-full blur-[120px] pointer-events-none animate-pulse"></div>
-        <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-red-900/40 rounded-full blur-[100px] pointer-events-none"></div>
+      {/* --- HERO SECTION (RINGAN & OPTIMAL UNTUK MOBILE) --- */}
+      <div className="relative flex flex-col items-center justify-center min-h-[48vh] sm:min-h-[55vh] text-center mb-10 sm:mb-16 overflow-hidden pt-16 sm:pt-20 px-4">
+        {/* Orbs Background Animasi - Ringan pada GPU Mobile */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[600px] h-[320px] sm:h-[600px] bg-red-600/15 rounded-full blur-[60px] sm:blur-[120px] pointer-events-none"></div>
+        <div className="hidden sm:block absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-red-900/30 rounded-full blur-[100px] pointer-events-none"></div>
 
-        <div className="relative z-10 max-w-4xl px-4 flex flex-col items-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-950/50 border border-red-500/30 text-red-300 text-xs sm:text-sm font-bold mb-6 backdrop-blur-md shadow-[0_0_15px_rgba(220,38,38,0.2)]">
+        <div className="relative z-10 max-w-4xl w-full flex flex-col items-center">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-950/60 border border-red-500/30 text-red-300 text-xs sm:text-sm font-bold mb-4 sm:mb-6 backdrop-blur-sm shadow-[0_0_15px_rgba(220,38,38,0.2)]">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
             Platform Database Anime Terdepan
           </div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-black mb-6 tracking-tighter drop-shadow-2xl text-white leading-tight">
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black mb-4 sm:mb-6 tracking-tight drop-shadow-2xl text-white leading-tight">
             Eksplorasi{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-red-400 to-white">
               Anime
@@ -196,27 +205,27 @@ const Home = () => {
             Tanpa Batas
           </h1>
 
-          <p className="text-red-100/70 max-w-2xl text-base sm:text-lg font-medium mb-10 leading-relaxed">
+          <p className="text-red-100/70 max-w-2xl text-sm sm:text-base md:text-lg font-medium mb-8 sm:mb-10 leading-relaxed px-2">
             Pantau jadwal tayang, simpan watchlist pribadi, dan temukan
             rekomendasi Anime menarik. Semua terintegrasi sempurna di RAIHANEX.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto items-center">
+          <div className="grid grid-cols-1 sm:flex sm:flex-row gap-3 w-full sm:w-auto items-center justify-center">
             <Link
               to="/search"
-              className="w-full sm:w-auto btn-primary py-4 px-8 text-base shadow-[0_0_30px_rgba(220,38,38,0.4)] flex items-center justify-center gap-3"
+              className="w-full sm:w-auto btn-primary py-3.5 sm:py-4 px-6 sm:px-8 text-sm sm:text-base shadow-[0_0_25px_rgba(220,38,38,0.35)] flex items-center justify-center gap-2.5"
             >
-              <FaCompass className="text-xl animate-spin-slow" /> Mulai Petualangan
+              <FaCompass className="text-lg" /> Mulai Petualangan
             </Link>
             <button
               onClick={() => setIsRandomizerOpen(true)}
-              className="w-full sm:w-auto bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white px-8 py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] border border-amber-400/40 cursor-pointer active:scale-95 text-base hover:-translate-y-1"
+              className="w-full sm:w-auto bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(234,179,8,0.25)] border border-amber-400/40 cursor-pointer active:scale-95 text-sm sm:text-base"
             >
-              <FaDice className="text-xl animate-spin-slow text-yellow-200 drop-shadow-md" /> Gacha Anime
+              <FaDice className="text-lg text-yellow-200" /> Gacha Anime
             </button>
             <Link
               to="/schedule"
-              className="w-full sm:w-auto btn-secondary py-4 px-8 text-base flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(0,0,0,0.5)]"
+              className="w-full sm:w-auto btn-secondary py-3.5 sm:py-4 px-6 sm:px-8 text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-[0_0_15px_rgba(0,0,0,0.5)]"
             >
               <FaPlay className="text-red-500" /> Lihat Jadwal
             </Link>
@@ -225,12 +234,12 @@ const Home = () => {
       </div>
 
       {/* --- KONTEN UTAMA --- */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6">
         {isLoading ? (
-          <div className="flex flex-col gap-12 md:gap-16">
-            <section className="glass-card p-6 md:p-8 rounded-[2rem]">
-              <div className="h-8 bg-red-900/20 rounded-xl w-64 mb-6 animate-pulse"></div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
+          <div className="flex flex-col gap-8 md:gap-16">
+            <section className="glass-card p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-[2rem]">
+              <div className="h-6 sm:h-8 bg-red-900/20 rounded-xl w-48 sm:w-64 mb-6 animate-pulse"></div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-6">
                 {[...Array(5)].map((_, i) => (
                   <SkeletonCard key={i} />
                 ))}
@@ -238,41 +247,41 @@ const Home = () => {
             </section>
           </div>
         ) : (
-          <div className="flex flex-col gap-12 md:gap-16">
+          <div className="flex flex-col gap-8 md:gap-16">
             {/* SECTION 1: JADWAL RILIS TERDEKAT */}
-            <section className="glass-card p-6 md:p-8 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)] animate-fade-in relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-[80px] pointer-events-none group-hover:bg-red-600/20 transition-all duration-700"></div>
-              
-              <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-red-900/30 pb-4 relative z-10">
-                <div className="flex items-center gap-4">
-                  <div className="bg-red-900/30 p-3 rounded-xl border border-red-500/20">
-                    <FaCalendarAlt className="text-red-500 text-2xl drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+            <section className="glass-card p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-[2rem] shadow-[0_15px_35px_rgba(0,0,0,0.4)] animate-fade-in relative overflow-hidden group">
+              <div className="hidden sm:block absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-[80px] pointer-events-none"></div>
+
+              <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-red-900/30 pb-4 relative z-10">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="bg-red-900/30 p-2.5 sm:p-3 rounded-xl border border-red-500/20 flex-shrink-0">
+                    <FaCalendarAlt className="text-red-500 text-xl sm:text-2xl drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
                   </div>
                   <div>
-                    <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
+                    <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
                       Jadwal Rilis Terdekat
                     </h2>
-                    <p className="text-sm text-gray-400 mt-1 font-medium">
+                    <p className="text-xs sm:text-sm text-gray-400 mt-0.5 font-medium">
                       Anime yang akan tayang dalam waktu dekat.
                     </p>
                   </div>
                 </div>
                 <Link
                   to="/schedule"
-                  className="text-xs sm:text-sm font-bold text-red-400 hover:text-white transition-colors bg-black/40 px-5 py-2.5 rounded-xl border border-red-900/50 hover:bg-red-900/40 w-max shadow-[0_0_15px_rgba(0,0,0,0.5)] cursor-pointer hover:shadow-[0_0_15px_rgba(220,38,38,0.3)] active:scale-95 flex items-center gap-2"
+                  className="text-xs sm:text-sm font-bold text-red-400 hover:text-white transition-colors bg-black/40 px-4 py-2 rounded-xl border border-red-900/50 hover:bg-red-900/40 w-max shadow-md flex items-center gap-1.5"
                 >
                   Kalender Lengkap &rarr;
                 </Link>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 relative z-10">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-6 relative z-10">
                 {airingAnime.map((schedule, index) => (
                   <div
                     key={`${schedule.media?.id || schedule.id}-${schedule.episode}-${index}`}
-                    className="relative group hover:-translate-y-2 transition-transform duration-300"
+                    className="relative group hover:-translate-y-1.5 transition-transform duration-300"
                   >
-                    <div className="absolute -top-3 -right-3 z-20 bg-gradient-to-r from-red-700 to-red-500 text-white text-[10px] font-black px-3 py-1.5 rounded-lg shadow-[0_10px_20px_rgba(220,38,38,0.5)] flex items-center gap-1.5 border border-red-400/50 uppercase tracking-wider">
-                      <FaClock /> Ep {schedule.episode}:{" "}
+                    <div className="absolute -top-2.5 -right-2.5 sm:-top-3 sm:-right-3 z-20 bg-gradient-to-r from-red-700 to-red-500 text-white text-[9px] sm:text-[10px] font-black px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg shadow-md flex items-center gap-1 border border-red-400/40 uppercase tracking-tight">
+                      <FaClock size={9} /> Ep {schedule.episode}:{" "}
                       {formatTimeAiring(schedule.timeUntilAiring)}
                     </div>
                     <AnimeCard anime={schedule.media} />
@@ -281,21 +290,24 @@ const Home = () => {
               </div>
             </section>
 
-            {/* SECTION 2: SMART RECOMMENDATION */}
+            {/* SECTION 2: SMART RECOMMENDATION (Optimasi Content Visibility) */}
             {recommendedAnime.length > 0 && (
-              <section className="glass-card p-6 md:p-8 rounded-[2rem] shadow-[0_20px_50px_rgba(220,38,38,0.1)] relative overflow-hidden animate-fade-in group">
-                <div className="absolute -left-32 top-1/2 -translate-y-1/2 w-96 h-96 bg-amber-600/10 rounded-full blur-[100px] pointer-events-none group-hover:bg-amber-600/20 transition-all duration-700"></div>
+              <section
+                style={{ contentVisibility: "auto", containIntrinsicSize: "0 400px" }}
+                className="glass-card p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-[2rem] shadow-[0_15px_35px_rgba(220,38,38,0.1)] relative overflow-hidden animate-fade-in group"
+              >
+                <div className="hidden sm:block absolute -left-32 top-1/2 -translate-y-1/2 w-96 h-96 bg-amber-600/10 rounded-full blur-[100px] pointer-events-none"></div>
 
-                <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-red-900/30 pb-4 relative z-10">
-                  <div className="flex items-center gap-4">
-                    <div className="bg-amber-900/30 p-3 rounded-xl border border-amber-500/20">
-                      <FaMagic className="text-amber-400 text-2xl drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
+                <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-red-900/30 pb-4 relative z-10">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="bg-amber-900/30 p-2.5 sm:p-3 rounded-xl border border-amber-500/20 flex-shrink-0">
+                      <FaMagic className="text-amber-400 text-xl sm:text-2xl drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" />
                     </div>
                     <div>
-                      <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
+                      <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
                         Rekomendasi Anime
                       </h2>
-                      <p className="text-sm text-gray-300 mt-1 font-medium">
+                      <p className="text-xs sm:text-sm text-gray-300 mt-0.5 font-medium">
                         Mirip dengan{" "}
                         <span className="font-black text-amber-400 bg-amber-900/30 border border-amber-500/30 px-2 py-0.5 rounded-md shadow-inner">
                           {baseRecomTitle}
@@ -305,11 +317,11 @@ const Home = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 relative z-10">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-6 relative z-10">
                   {recommendedAnime.map((anime) => (
                     <div
                       key={anime.id}
-                      className="hover:-translate-y-2 transition-transform duration-300"
+                      className="hover:-translate-y-1.5 transition-transform duration-300"
                     >
                       <AnimeCard anime={anime} />
                     </div>
@@ -318,29 +330,32 @@ const Home = () => {
               </section>
             )}
 
-            {/* SECTION 3: SEDANG TRENDING */}
-            <section className="glass-card p-6 md:p-8 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.5)] animate-fade-in relative overflow-hidden group">
-              <div className="absolute bottom-0 right-0 w-64 h-64 bg-orange-600/10 rounded-full blur-[80px] pointer-events-none group-hover:bg-orange-600/20 transition-all duration-700"></div>
+            {/* SECTION 3: SEDANG TRENDING (Optimasi Content Visibility) */}
+            <section
+              style={{ contentVisibility: "auto", containIntrinsicSize: "0 600px" }}
+              className="glass-card p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-[2rem] shadow-[0_15px_35px_rgba(0,0,0,0.4)] animate-fade-in relative overflow-hidden group"
+            >
+              <div className="hidden sm:block absolute bottom-0 right-0 w-64 h-64 bg-orange-600/10 rounded-full blur-[80px] pointer-events-none"></div>
 
-              <div className="mb-8 flex items-center gap-4 border-b border-red-900/30 pb-4 relative z-10">
-                <div className="bg-orange-900/30 p-3 rounded-xl border border-orange-500/20">
-                  <FaFire className="text-orange-500 text-2xl drop-shadow-[0_0_15px_rgba(249,115,22,0.8)]" />
+              <div className="mb-6 sm:mb-8 flex items-center gap-3 sm:gap-4 border-b border-red-900/30 pb-4 relative z-10">
+                <div className="bg-orange-900/30 p-2.5 sm:p-3 rounded-xl border border-orange-500/20 flex-shrink-0">
+                  <FaFire className="text-orange-500 text-xl sm:text-2xl drop-shadow-[0_0_15px_rgba(249,115,22,0.8)]" />
                 </div>
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
                     Sedang Trending
                   </h2>
-                  <p className="text-sm text-gray-400 mt-1 font-medium">
+                  <p className="text-xs sm:text-sm text-gray-400 mt-0.5 font-medium">
                     Judul-judul terpanas yang sedang ramai dibicarakan komunitas.
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 relative z-10">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-6 relative z-10">
                 {trendingAnime.map((anime) => (
                   <div
                     key={anime.id}
-                    className="hover:-translate-y-2 transition-transform duration-300"
+                    className="hover:-translate-y-1.5 transition-transform duration-300"
                   >
                     <AnimeCard anime={anime} />
                   </div>
@@ -348,11 +363,11 @@ const Home = () => {
               </div>
 
               {hasNextPage && (
-                <div className="flex justify-center mt-12 relative z-10">
+                <div className="flex justify-center mt-8 sm:mt-12 relative z-10">
                   <button
                     onClick={handleLoadMore}
                     disabled={isFetchingMore}
-                    className="btn-secondary py-4 px-8 font-bold flex items-center gap-3 group"
+                    className="btn-secondary py-3.5 px-6 sm:py-4 sm:px-8 text-xs sm:text-sm font-bold flex items-center gap-2.5 group active:scale-95"
                   >
                     {isFetchingMore ? (
                       <span className="animate-pulse">
@@ -374,11 +389,15 @@ const Home = () => {
         )}
       </div>
 
-      {/* MODAL GACHA ROULETTE ANIME */}
-      <AnimeRandomizerModal
-        isOpen={isRandomizerOpen}
-        onClose={() => setIsRandomizerOpen(false)}
-      />
+      {/* MODAL GACHA ROULETTE ANIME (Lazy Loaded) */}
+      {isRandomizerOpen && (
+        <Suspense fallback={null}>
+          <AnimeRandomizerModal
+            isOpen={isRandomizerOpen}
+            onClose={() => setIsRandomizerOpen(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

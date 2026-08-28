@@ -9,7 +9,6 @@ import {
   FaSun,
   FaTree,
   FaStar,
-  FaPlayCircle,
 } from "react-icons/fa";
 
 // Query GraphQL untuk mengambil anime berdasarkan Musim dan Tahun
@@ -253,10 +252,10 @@ const Seasonal = () => {
               <Link
                 to={`/anime/${anime.id}`}
                 key={anime.id}
-                className="group relative glass-card glass-card-hover rounded-2xl overflow-hidden flex flex-col h-full aspect-[2/3]"
+                className="group relative bg-gradient-to-b from-[#180505] to-[#0d0202] border border-red-900/35 hover:border-red-500/60 rounded-2xl overflow-hidden flex flex-col h-full aspect-[2/3] hover:-translate-y-1.5 transition-all duration-300 will-change-transform shadow-lg"
               >
                 {/* Badge Status & Episode */}
-                <div className="absolute top-2 left-2 bg-black/80 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md z-20 border border-red-900/50 flex flex-col gap-1">
+                <div className="absolute top-2 left-2 bg-black/80 text-white text-[10px] font-bold px-2 py-1 rounded-md z-20 border border-red-900/50 flex flex-col gap-1">
                   <span
                     className={
                       anime.status === "RELEASING"
@@ -273,18 +272,20 @@ const Seasonal = () => {
                   )}
                 </div>
 
-                {/* Cover Poster */}
+                {/* Cover Poster with Async Decoding */}
                 <img
                   src={anime.coverImage?.large}
                   alt={anime.title?.romaji || "Poster"}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                 />
 
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0a0202] via-[#0a0202]/30 to-transparent opacity-95 group-hover:opacity-100 transition-opacity"></div>
 
                 {/* Info Text Bawah */}
-                <div className="absolute bottom-0 w-full p-3 flex flex-col justify-end translate-y-2 group-hover:translate-y-0 transition-transform">
-                  <h3 className="text-white font-bold text-sm line-clamp-2 leading-tight drop-shadow-md group-hover:text-red-400 transition-colors">
+                <div className="absolute bottom-0 w-full p-3 flex flex-col justify-end translate-y-2 group-hover:translate-y-0 transition-transform duration-200 bg-gradient-to-b from-transparent to-[#080101]/95">
+                  <h3 className="text-white font-bold text-sm line-clamp-2 leading-tight drop-shadow-md group-hover:text-red-400 transition-colors duration-200">
                     {anime.title?.romaji}
                   </h3>
                   <div className="mt-2 flex items-center justify-between">
@@ -296,7 +297,6 @@ const Seasonal = () => {
                           : "N/A"}
                       </span>
                     </div>
-                    <FaPlayCircle className="text-red-500 opacity-0 group-hover:opacity-100 transition-opacity text-xl drop-shadow-lg" />
                   </div>
                 </div>
               </Link>

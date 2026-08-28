@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
@@ -37,66 +37,56 @@ const Profile = () => {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    let isCancelled = false;
+  const fetchProfileData = useCallback(async () => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
 
-    const fetchProfileData = async () => {
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
+    try {
+      // Parallel Fetch untuk mempercepat load time dasbor profil
+      const [
+        { count: watchlistCount, error: watchlistError },
+        { count: reviewCount, error: reviewError },
+        { data: recentWatchlist, error: recentError },
+      ] = await Promise.all([
+        supabase
+          .from("watchlist")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id),
+        supabase
+          .from("reviews")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id),
+        supabase
+          .from("watchlist")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(4),
+      ]);
 
-      try {
-        // Parallel Fetch untuk mempercepat load time dasbor profil
-        const [
-          { count: watchlistCount, error: watchlistError },
-          { count: reviewCount, error: reviewError },
-          { data: recentWatchlist, error: recentError },
-        ] = await Promise.all([
-          supabase
-            .from("watchlist")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", user.id),
-          supabase
-            .from("reviews")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", user.id),
-          supabase
-            .from("watchlist")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(4),
-        ]);
+      if (watchlistError) console.error("Error watchlist count:", watchlistError);
+      if (reviewError) console.error("Error review count:", reviewError);
+      if (recentError) console.error("Error recent watchlist:", recentError);
 
-        if (watchlistError) console.error("Error watchlist count:", watchlistError);
-        if (reviewError) console.error("Error review count:", reviewError);
-        if (recentError) console.error("Error recent watchlist:", recentError);
-
-        if (!isCancelled) {
-          setStats({
-            totalWatchlist: watchlistCount || 0,
-            totalReviews: reviewCount || 0,
-          });
-          setRecentActivity(recentWatchlist || []);
-          setNewDisplayName(displayName);
-        }
-      } catch (error) {
-        console.error("Gagal memuat data profil:", error);
-        toast.error("Gagal memuat data profil.");
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    fetchProfileData();
-
-    return () => {
-      isCancelled = true;
-    };
+      setStats({
+        totalWatchlist: watchlistCount || 0,
+        totalReviews: reviewCount || 0,
+      });
+      setRecentActivity(recentWatchlist || []);
+      setNewDisplayName(displayName);
+    } catch (error) {
+      console.error("Gagal memuat data profil:", error);
+      toast.error("Gagal memuat data profil.");
+    } finally {
+      setIsLoading(false);
+    }
   }, [user, navigate, displayName]);
+
+  useEffect(() => {
+    fetchProfileData();
+  }, [fetchProfileData]);
 
   const handleLogout = () => {
     showConfirmToast({
@@ -443,6 +433,7 @@ const Profile = () => {
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         user={user}
+        onImportSuccess={fetchProfileData}
       />
     </div>
   );
