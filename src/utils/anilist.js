@@ -194,3 +194,16 @@ export const clearAniListCache = () => {
   queryCache.clear();
   inFlightRequests.clear();
 };
+
+/**
+ * Garbage Collection Otomatis untuk Cache (berjalan setiap 7 menit)
+ * Mencegah penumpukan memori pada penggunaan web jangka panjang (tab idle)
+ */
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of queryCache.entries()) {
+    if (now - entry.timestamp > (entry.ttl || DEFAULT_TTL_MS)) {
+      queryCache.delete(key);
+    }
+  }
+}, 7 * 60 * 1000);
