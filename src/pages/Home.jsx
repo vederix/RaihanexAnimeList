@@ -116,10 +116,11 @@ const Home = () => {
         if (airingResult.error) throw new Error(airingResult.error);
         if (trendingResult.error) throw new Error(trendingResult.error);
 
+        if (isCancelled) return;
+
         const airingData = airingResult.data;
         const trendingData = trendingResult.data;
 
-        if (isCancelled) return;
         setAiringAnime(airingData?.Page?.airingSchedules || []);
         setTrendingAnime(trendingData?.Page?.media || []);
         setHasNextPage(trendingData?.Page?.pageInfo?.hasNextPage || false);

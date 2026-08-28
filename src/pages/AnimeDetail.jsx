@@ -166,6 +166,7 @@ export default function AnimeDetail() {
 
         const { data, error } = await fetchAniList(DETAIL_QUERY, { id: parsedId });
         if (error) throw new Error(error);
+        
         const animeData = data?.Media;
         if (!isCancelled) {
           setAnime(animeData);
@@ -182,7 +183,9 @@ export default function AnimeDetail() {
           ]);
         }
       } catch (error) {
-        console.error("Gagal memuat detail anime:", error);
+        if (!isCancelled) {
+          console.error("Gagal memuat detail anime:", error);
+        }
       } finally {
         if (!isCancelled) {
           setIsLoading(false);

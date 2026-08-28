@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
@@ -42,8 +42,8 @@ const Watchlist = () => {
         setSavedAnime(data || []);
       }
     } catch (err) {
-      console.error("Gagal memuat watchlist:", err);
       if (!isCancelled) {
+        console.error("Gagal memuat watchlist:", err);
         setFetchError("Gagal memuat data Watchlist dari server. Periksa koneksi internetmu.");
         toast.error("Gagal memuat Watchlist.");
       }
@@ -175,28 +175,30 @@ const Watchlist = () => {
   };
 
   // --- PERSIAPAN DATA UNTUK GRAFIK & FILTER ---
-  const watchingCount = savedAnime.filter(
-    (a) => a.status_tontonan === "Watching",
-  ).length;
-  const completedCount = savedAnime.filter(
-    (a) => a.status_tontonan === "Completed",
-  ).length;
-  const planCount = savedAnime.filter(
-    (a) => (a.status_tontonan || "Plan to Watch") === "Plan to Watch",
-  ).length;
+  const { watchingCount, completedCount, planCount, chartData, filteredAnime } = useMemo(() => {
+    const wCount = savedAnime.filter((a) => a.status_tontonan === "Watching").length;
+    const cCount = savedAnime.filter((a) => a.status_tontonan === "Completed").length;
+    const pCount = savedAnime.filter((a) => (a.status_tontonan || "Plan to Watch") === "Plan to Watch").length;
 
-  const chartData = [
-    { name: "Watching", value: watchingCount, color: "#f59e0b" },
-    { name: "Completed", value: completedCount, color: "#10b981" },
-    { name: "Plan to Watch", value: planCount, color: "#3b82f6" },
-  ].filter((item) => item.value > 0);
+    const cData = [
+      { name: "Watching", value: wCount, color: "#f59e0b" },
+      { name: "Completed", value: cCount, color: "#10b981" },
+      { name: "Plan to Watch", value: pCount, color: "#3b82f6" },
+    ].filter((item) => item.value > 0);
 
-  const filteredAnime =
-    activeTab === "Semua"
-      ? savedAnime
-      : savedAnime.filter(
-          (anime) => (anime.status_tontonan || "Plan to Watch") === activeTab,
-        );
+    const fAnime =
+      activeTab === "Semua"
+        ? savedAnime
+        : savedAnime.filter((anime) => (anime.status_tontonan || "Plan to Watch") === activeTab);
+
+    return {
+      watchingCount: wCount,
+      completedCount: cCount,
+      planCount: pCount,
+      chartData: cData,
+      filteredAnime: fAnime,
+    };
+  }, [savedAnime, activeTab]);
 
   // --- RENDER LOADING ---
   if (isLoading) {
@@ -468,6 +470,7 @@ const Watchlist = () => {
                         onClick={() => updateEpisodesWatched(anime.anilist_id, Math.max(0, (anime.episodes_watched || 0) - 1))}
                         className="bg-black/60 hover:bg-red-900/40 text-gray-400 hover:text-white border border-red-900/50 rounded-lg p-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={!anime.episodes_watched || anime.episodes_watched <= 0}
+                        aria-label="Kurangi Episode"
                       >
                         <FaMinus size={10} />
                       </button>
@@ -483,6 +486,7 @@ const Watchlist = () => {
                         onClick={() => updateEpisodesWatched(anime.anilist_id, (anime.episodes_watched || 0) + 1)}
                         className="bg-black/60 hover:bg-green-900/40 text-gray-400 hover:text-white border border-green-900/50 rounded-lg p-2 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={anime.total_episodes && (anime.episodes_watched || 0) >= anime.total_episodes}
+                        aria-label="Tambah Episode"
                       >
                         <FaPlus size={10} />
                       </button>
