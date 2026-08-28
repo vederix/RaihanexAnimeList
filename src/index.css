@@ -125,10 +125,16 @@ body {
 /* Enhanced Base Glass Card */
 .glass-card {
   background: linear-gradient(135deg, rgba(30, 7, 7, 0.65) 0%, rgba(15, 3, 3, 0.8) 100%);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(220, 38, 38, 0.2);
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7), inset 0 1px 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Enable backdrop-filter only on md+ screens to save mobile GPU and fix scroll lag */
+@media (min-width: 768px) {
+  .glass-card {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
 }
 
 /* Dramatic Glass Card with 3D Hover & Glowing Border */

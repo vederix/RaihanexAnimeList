@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense, memo } from "react";
 import AnimeCard from "../components/AnimeCard";
 import SkeletonCard from "../components/SkeletonCard";
 import { fetchAniList } from "../utils/anilist";
@@ -59,6 +59,35 @@ const RECOM_QUERY = `
     }
   }
 `;
+
+const formatTimeAiring = (seconds) => {
+  if (!seconds || seconds <= 0) return "Tayang sekarang";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (days > 0) return `${days} hari lagi`;
+  if (hours > 0) return `${hours} jam lagi`;
+  if (minutes > 0) return `${minutes} menit lagi`;
+  return "Segera tayang";
+};
+
+const AiringScheduleCard = memo(({ schedule }) => (
+  <div className="relative group hover:-translate-y-1.5 transition-transform duration-300">
+    <div className="absolute -top-2.5 -right-2.5 sm:-top-3 sm:-right-3 z-20 bg-gradient-to-r from-red-700 to-red-500 text-white text-[9px] sm:text-[10px] font-black px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg shadow-md flex items-center gap-1 border border-red-400/40 uppercase tracking-tight">
+      <FaClock size={9} /> Ep {schedule.episode}: {formatTimeAiring(schedule.timeUntilAiring)}
+    </div>
+    <AnimeCard anime={schedule.media} />
+  </div>
+));
+AiringScheduleCard.displayName = "AiringScheduleCard";
+
+const StandardAnimeWrapper = memo(({ anime }) => (
+  <div className="hover:-translate-y-1.5 transition-transform duration-300">
+    <AnimeCard anime={anime} />
+  </div>
+));
+StandardAnimeWrapper.displayName = "StandardAnimeWrapper";
 
 const Home = () => {
   const { user } = useAuth();
@@ -171,18 +200,6 @@ const Home = () => {
     }
   }, [page, hasNextPage, isFetchingMore]);
 
-  const formatTimeAiring = (seconds) => {
-    if (!seconds || seconds <= 0) return "Tayang sekarang";
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-
-    if (days > 0) return `${days} hari lagi`;
-    if (hours > 0) return `${hours} jam lagi`;
-    if (minutes > 0) return `${minutes} menit lagi`;
-    return "Segera tayang";
-  };
-
   return (
     <div className="pb-16 relative z-10">
       {/* --- HERO SECTION (RINGAN & OPTIMAL UNTUK MOBILE) --- */}
@@ -276,16 +293,10 @@ const Home = () => {
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-6 relative z-10">
                 {airingAnime.map((schedule, index) => (
-                  <div
+                  <AiringScheduleCard
                     key={`${schedule.media?.id || schedule.id}-${schedule.episode}-${index}`}
-                    className="relative group hover:-translate-y-1.5 transition-transform duration-300"
-                  >
-                    <div className="absolute -top-2.5 -right-2.5 sm:-top-3 sm:-right-3 z-20 bg-gradient-to-r from-red-700 to-red-500 text-white text-[9px] sm:text-[10px] font-black px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg shadow-md flex items-center gap-1 border border-red-400/40 uppercase tracking-tight">
-                      <FaClock size={9} /> Ep {schedule.episode}:{" "}
-                      {formatTimeAiring(schedule.timeUntilAiring)}
-                    </div>
-                    <AnimeCard anime={schedule.media} />
-                  </div>
+                    schedule={schedule}
+                  />
                 ))}
               </div>
             </section>
@@ -319,12 +330,7 @@ const Home = () => {
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-6 relative z-10">
                   {recommendedAnime.map((anime) => (
-                    <div
-                      key={anime.id}
-                      className="hover:-translate-y-1.5 transition-transform duration-300"
-                    >
-                      <AnimeCard anime={anime} />
-                    </div>
+                    <StandardAnimeWrapper key={anime.id} anime={anime} />
                   ))}
                 </div>
               </section>
@@ -353,12 +359,7 @@ const Home = () => {
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-6 relative z-10">
                 {trendingAnime.map((anime) => (
-                  <div
-                    key={anime.id}
-                    className="hover:-translate-y-1.5 transition-transform duration-300"
-                  >
-                    <AnimeCard anime={anime} />
-                  </div>
+                  <StandardAnimeWrapper key={anime.id} anime={anime} />
                 ))}
               </div>
 
