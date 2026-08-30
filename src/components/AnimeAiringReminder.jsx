@@ -1,9 +1,10 @@
+import { memo } from "react";
 import { FaBell, FaCalendarPlus, FaDownload } from "react-icons/fa";
 import { generateGoogleCalendarUrl, downloadIcsFile } from "../utils/calendar";
 import { supabase } from "../supabaseClient";
 import toast from "react-hot-toast";
 
-export default function AnimeAiringReminder({ anime, user }) {
+const AnimeAiringReminder = memo(function AnimeAiringReminder({ anime, user }) {
   if (!anime?.nextAiringEpisode) return null;
 
   const { episode, airingAt } = anime.nextAiringEpisode;
@@ -104,4 +105,6 @@ export default function AnimeAiringReminder({ anime, user }) {
       </div>
     </div>
   );
-}
+});
+
+export default AnimeAiringReminder;

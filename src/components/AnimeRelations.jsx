@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Link } from "react-router-dom";
 import { FaSitemap, FaBook, FaTv } from "react-icons/fa";
 
@@ -17,7 +18,7 @@ const translateRelation = (type) => {
   return types[type] || type;
 };
 
-export default function AnimeRelations({ relations }) {
+const AnimeRelations = memo(function AnimeRelations({ relations }) {
   if (!relations || !relations.edges || relations.edges.length === 0) return null;
 
   return (
@@ -71,4 +72,6 @@ export default function AnimeRelations({ relations }) {
       </div>
     </div>
   );
-}
+});
+
+export default AnimeRelations;

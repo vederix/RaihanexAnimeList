@@ -1,6 +1,7 @@
+import { memo } from "react";
 import { FaInfoCircle } from "react-icons/fa";
 
-export default function AnimeInfoTable({ anime }) {
+const AnimeInfoTable = memo(function AnimeInfoTable({ anime }) {
   if (!anime) return null;
 
   const infoRows = [
@@ -52,4 +53,6 @@ export default function AnimeInfoTable({ anime }) {
       ))}
     </div>
   );
-}
+});
+
+export default AnimeInfoTable;

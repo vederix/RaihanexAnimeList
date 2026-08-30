@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { showConfirmToast } from "../utils/confirmToast.jsx";
@@ -16,7 +16,7 @@ import {
   FaClock,
 } from "react-icons/fa";
 
-export default function AnimeReviewSection({
+const AnimeReviewSection = memo(function AnimeReviewSection({
   anime,
   user,
   displayName,
@@ -587,4 +587,6 @@ export default function AnimeReviewSection({
       </div>
     </div>
   );
-}
+});
+
+export default AnimeReviewSection;

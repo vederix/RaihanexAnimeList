@@ -12,6 +12,7 @@ import {
   FaFilter,
 } from "react-icons/fa";
 import { fetchAniList } from "../utils/anilist";
+import { useGenres } from "../utils/genreService";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
@@ -36,22 +37,6 @@ const RANDOM_QUERY = `
   }
 `;
 
-const GENRES = [
-  "Semua",
-  "Action",
-  "Adventure",
-  "Comedy",
-  "Drama",
-  "Fantasy",
-  "Horror",
-  "Mystery",
-  "Romance",
-  "Sci-Fi",
-  "Slice of Life",
-  "Supernatural",
-  "Thriller",
-];
-
 const FORMATS = [
   { label: "Semua Format", value: "" },
   { label: "TV Series", value: "TV" },
@@ -61,6 +46,11 @@ const FORMATS = [
 
 export default function AnimeRandomizerModal({ isOpen, onClose }) {
   const { user } = useAuth();
+  const { genres: apiGenres, isLoading: isGenreLoading } = useGenres();
+
+  // Prepend opsi "Semua" untuk dropdown genre
+  const genreOptions = ["Semua", ...apiGenres];
+
   const [selectedGenre, setSelectedGenre] = useState("Semua");
   const [selectedFormat, setSelectedFormat] = useState("");
   const [isSpinning, setIsSpinning] = useState(false);
@@ -260,10 +250,10 @@ export default function AnimeRandomizerModal({ isOpen, onClose }) {
               <select
                 value={selectedGenre}
                 onChange={(e) => setSelectedGenre(e.target.value)}
-                disabled={isSpinning}
+                disabled={isSpinning || isGenreLoading}
                 className="w-full bg-[#140404] text-white text-[11px] sm:text-xs font-semibold py-2 pl-3 pr-7 rounded-xl border border-red-900/50 focus:border-red-500 outline-none appearance-none cursor-pointer transition-colors shadow-inner"
               >
-                {GENRES.map((g) => (
+                {genreOptions.map((g) => (
                   <option key={g} value={g} className="bg-[#0a0202] text-white">
                     Genre: {g}
                   </option>

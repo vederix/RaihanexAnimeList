@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
@@ -65,7 +65,7 @@ const Watchlist = () => {
   }, [user]);
 
   // --- FUNGSI UPDATE STATUS TONTONAN ---
-  const updateStatus = async (animeId, newStatus) => {
+  const updateStatus = useCallback(async (animeId, newStatus) => {
     if (!user) return;
     try {
       const { error } = await supabase
@@ -87,10 +87,10 @@ const Watchlist = () => {
     } catch {
       toast.error("Gagal mengubah status.");
     }
-  };
+  }, [user]);
 
   // --- FUNGSI UPDATE RATING PRIBADI ---
-  const updateRating = async (animeId, newRating) => {
+  const updateRating = useCallback(async (animeId, newRating) => {
     if (!user) return;
     try {
       const { error } = await supabase
@@ -112,17 +112,24 @@ const Watchlist = () => {
     } catch {
       toast.error("Gagal menyimpan rating.");
     }
-  };
+  }, [user]);
 
   // --- FUNGSI UPDATE EPISODES WATCHED ---
-  const updateEpisodesWatched = async (animeId, newEpisodesWatched) => {
+  const updateEpisodesWatched = useCallback(async (animeId, newEpisodesWatched) => {
     if (!user) return;
     if (newEpisodesWatched < 0) return;
 
-    const target = savedAnime.find((a) => a.anilist_id === animeId);
-    if (target && target.total_episodes && newEpisodesWatched > target.total_episodes) {
-      return;
-    }
+    setSavedAnime((prev) => {
+      const target = prev.find((a) => a.anilist_id === animeId);
+      if (target && target.total_episodes && newEpisodesWatched > target.total_episodes) {
+        return prev;
+      }
+      return prev.map((anime) =>
+        anime.anilist_id === animeId
+          ? { ...anime, episodes_watched: newEpisodesWatched }
+          : anime,
+      );
+    });
 
     try {
       const { error } = await supabase
@@ -132,20 +139,12 @@ const Watchlist = () => {
         .eq("anilist_id", animeId);
 
       if (error) throw error;
-
-      setSavedAnime((prev) =>
-        prev.map((anime) =>
-          anime.anilist_id === animeId
-            ? { ...anime, episodes_watched: newEpisodesWatched }
-            : anime,
-        ),
-      );
     } catch {
       toast.error("Gagal menyimpan progress episode.");
     }
-  };
+  }, [user]);
 
-  const executeDeleteSingle = async (animeId) => {
+  const executeDeleteSingle = useCallback(async (animeId) => {
     if (!user) return;
     try {
       if (!animeId) throw new Error("Anime ID tidak valid");
@@ -163,16 +162,16 @@ const Watchlist = () => {
     } catch (err) {
       toast.error(err?.message || "Gagal menghapus anime.");
     }
-  };
+  }, [user]);
 
-  const handleRemoveItem = (animeId) => {
+  const handleRemoveItem = useCallback((animeId) => {
     showConfirmToast({
       title: "Hapus dari Watchlist?",
       message: "Anime ini akan dihapus dari daftar tontonan kamu.",
       confirmText: "Hapus",
       onConfirm: () => executeDeleteSingle(animeId),
     });
-  };
+  }, [executeDeleteSingle]);
 
   // --- PERSIAPAN DATA UNTUK GRAFIK & FILTER ---
   const { watchingCount, completedCount, planCount, chartData, filteredAnime } = useMemo(() => {

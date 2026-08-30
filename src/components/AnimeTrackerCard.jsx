@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   FaStar,
   FaTrash,
@@ -13,7 +14,7 @@ import {
   FaImage,
 } from "react-icons/fa";
 
-export default function AnimeTrackerCard({
+const AnimeTrackerCard = memo(function AnimeTrackerCard({
   anime,
   isInWatchlist,
   watchlistStatus,
@@ -184,4 +185,6 @@ export default function AnimeTrackerCard({
       </div>
     </div>
   );
-}
+});
+
+export default AnimeTrackerCard;

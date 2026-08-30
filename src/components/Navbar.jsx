@@ -24,7 +24,7 @@ import {
 import { fetchAniList } from "../utils/anilist";
 import { showConfirmToast } from "../utils/confirmToast.jsx";
 import AnimeRandomizerModal from "./AnimeRandomizerModal";
-
+import RaihanexLogo from "./RaihanexLogo";
 const LIVE_SEARCH_QUERY = `
   query ($search: String) {
     Page(page: 1, perPage: 5) {
@@ -243,15 +243,9 @@ const Navbar = () => {
           <Link
             to="/"
             onClick={handleLinkClick}
-            className="text-2xl font-black tracking-tighter text-white group flex items-center gap-3 flex-shrink-0 z-50"
+            className="flex-shrink-0 z-50 focus:outline-none"
           >
-            <div className="relative flex items-center justify-center w-9 h-9 lg:w-10 lg:h-10 bg-gradient-to-br from-red-600 to-red-900 rounded-xl shadow-[0_0_20px_rgba(220,38,38,0.4)] group-hover:shadow-[0_0_30px_rgba(220,38,38,0.8)] transition-all duration-500 group-hover:scale-105">
-              <span className="text-white font-bold text-base lg:text-lg">RX</span>
-            </div>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 group-hover:to-white transition-colors text-lg lg:text-xl">
-              RAIHAN<span className="text-red-500">EX</span>
-              <span className="text-red-600 hidden lg:inline">.</span>
-            </span>
+            <RaihanexLogo className="h-9 lg:h-10 text-xl lg:text-2xl" />
           </Link>
 
           {/* TENGAH: DOCK MENU (DESKTOP ONLY) */}
