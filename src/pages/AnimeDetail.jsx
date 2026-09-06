@@ -79,7 +79,7 @@ export default function AnimeDetail() {
   const [showCollectionModal, setShowCollectionModal] = useState(false);
 
   // --- FETCH ULASAN SUPABASE ---
-  const fetchReviews = useCallback(async (animeId, pageNum = 1, signal = null) => {
+  const fetchReviews = useCallback(async (animeId, pageNum = 1) => {
     try {
       const from = (pageNum - 1) * REVIEWS_PER_PAGE;
       const to = from + REVIEWS_PER_PAGE - 1;
@@ -92,8 +92,6 @@ export default function AnimeDetail() {
         .range(from, to);
 
       if (error) throw error;
-
-      if (signal?.aborted) return;
 
       if (pageNum === 1) {
         setReviews(data || []);
@@ -108,9 +106,7 @@ export default function AnimeDetail() {
       setHasMoreReviews((count || 0) > pageNum * REVIEWS_PER_PAGE);
       setReviewsPage(pageNum);
     } catch (err) {
-      if (!signal?.aborted) {
-        console.error("Gagal memuat ulasan:", err);
-      }
+      console.error("Gagal memuat ulasan:", err);
     }
   }, []);
 
@@ -123,9 +119,9 @@ export default function AnimeDetail() {
 
   // --- CEK STATUS WATCHLIST ---
   const checkWatchlistStatus = useCallback(
-    async (animeId, signal = null) => {
+    async (animeId) => {
       if (!user) {
-        if (!signal?.aborted) setIsInWatchlist(false);
+        setIsInWatchlist(false);
         return;
       }
       try {
@@ -136,9 +132,7 @@ export default function AnimeDetail() {
           .eq("anilist_id", animeId)
           .maybeSingle();
 
-        if (error && !signal?.aborted) console.error("Gagal mengecek status watchlist:", error);
-
-        if (signal?.aborted) return;
+        if (error) console.error("Gagal mengecek status watchlist:", error);
 
         if (data) {
           setIsInWatchlist(true);
@@ -152,7 +146,7 @@ export default function AnimeDetail() {
           setEpisodesWatched(0);
         }
       } catch (err) {
-        if (!signal?.aborted) console.error("Gagal cek status watchlist:", err);
+        console.error("Gagal cek status watchlist:", err);
       }
     },
     [user]
@@ -160,14 +154,13 @@ export default function AnimeDetail() {
 
   // --- LOAD ANIME DETAIL ---
   useEffect(() => {
-    const controller = new AbortController();
-    const { signal } = controller;
+    let isCancelled = false;
 
     const fetchAnime = async () => {
       try {
         const parsedId = parseInt(id, 10);
         if (isNaN(parsedId)) {
-          if (!signal.aborted) setIsLoading(false);
+          if (!isCancelled) setIsLoading(false);
           return;
         }
 
@@ -175,7 +168,7 @@ export default function AnimeDetail() {
         if (error) throw new Error(error);
         
         const animeData = data?.Media;
-        if (!signal.aborted) {
+        if (!isCancelled) {
           setAnime(animeData);
         }
 
@@ -183,18 +176,18 @@ export default function AnimeDetail() {
           document.title = `${animeData.title.romaji} - RAIHANEX`;
         }
 
-        if (animeData?.id && !signal.aborted) {
+        if (animeData?.id && !isCancelled) {
           await Promise.all([
-            fetchReviews(animeData.id, 1, signal),
-            checkWatchlistStatus(animeData.id, signal),
+            fetchReviews(animeData.id),
+            checkWatchlistStatus(animeData.id),
           ]);
         }
       } catch (error) {
-        if (!signal.aborted && error.name !== "AbortError") {
+        if (!isCancelled) {
           console.error("Gagal memuat detail anime:", error);
         }
       } finally {
-        if (!signal.aborted) {
+        if (!isCancelled) {
           setIsLoading(false);
         }
       }
@@ -203,7 +196,7 @@ export default function AnimeDetail() {
     fetchAnime();
 
     return () => {
-      controller.abort();
+      isCancelled = true;
       document.title = "RAIHANEX - Anime List & Tracker";
     };
   }, [id, fetchReviews, checkWatchlistStatus]);

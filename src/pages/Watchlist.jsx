@@ -21,9 +21,9 @@ const Watchlist = () => {
     { id: "Completed", label: "Completed", icon: <FaCheck /> },
   ];
 
-  const loadWatchlist = async (signal) => {
+  const loadWatchlist = async (isCancelled = false) => {
     if (!user) {
-      if (!signal?.aborted) {
+      if (!isCancelled) {
         setSavedAnime([]);
         setIsLoading(false);
       }
@@ -38,29 +38,28 @@ const Watchlist = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      if (!signal?.aborted) {
+      if (!isCancelled) {
         setSavedAnime(data || []);
       }
     } catch (err) {
-      if (!signal?.aborted) {
+      if (!isCancelled) {
         console.error("Gagal memuat watchlist:", err);
         setFetchError("Gagal memuat data Watchlist dari server. Periksa koneksi internetmu.");
         toast.error("Gagal memuat Watchlist.");
       }
     } finally {
-      if (!signal?.aborted) {
+      if (!isCancelled) {
         setIsLoading(false);
       }
     }
   };
 
   useEffect(() => {
-    const controller = new AbortController();
-    const { signal } = controller;
-    loadWatchlist(signal);
+    let isCancelled = false;
+    loadWatchlist(isCancelled);
 
     return () => {
-      controller.abort();
+      isCancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
