@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense, memo } from "react";
 import AnimeCard from "../components/AnimeCard";
 import SkeletonCard from "../components/SkeletonCard";
-import { fetchAniList } from "../utils/anilist";
+import { fetchAniList, getLocalStorageCache, setLocalStorageCache } from "../utils/anilist";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -34,9 +34,10 @@ const AIRING_QUERY = `
     Page(page: 1, perPage: 5) {
       airingSchedules(notYetAired: true, sort: TIME) {
         episode
+        airingAt
         timeUntilAiring
         media {
-          id title { romaji english } coverImage { large } averageScore format seasonYear status
+          id title { romaji english } coverImage { large } format genres
         }
       }
     }
@@ -89,22 +90,27 @@ const StandardAnimeWrapper = memo(({ anime }) => (
 ));
 StandardAnimeWrapper.displayName = "StandardAnimeWrapper";
 
+const HOME_AIRING_CACHE_KEY = 'anilist_schedule_cache_home';
+
 const Home = () => {
   const { user } = useAuth();
   const userId = user?.id;
   const [trendingAnime, setTrendingAnime] = useState([]);
-  const [airingAnime, setAiringAnime] = useState([]);
+  const [airingAnime, setAiringAnime] = useState(() => getLocalStorageCache(HOME_AIRING_CACHE_KEY) || []);
   const [recommendedAnime, setRecommendedAnime] = useState([]);
   const [baseRecomTitle, setBaseRecomTitle] = useState("");
   const [isRandomizerOpen, setIsRandomizerOpen] = useState(false);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    const cached = getLocalStorageCache(HOME_AIRING_CACHE_KEY);
+    return !cached || cached.length === 0;
+  });
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
   useEffect(() => {
-    let isCancelled = false;
+    let isMounted = true;
 
     const loadDashboard = async () => {
       try {
@@ -116,12 +122,15 @@ const Home = () => {
         if (airingResult.error) throw new Error(airingResult.error);
         if (trendingResult.error) throw new Error(trendingResult.error);
 
-        if (isCancelled) return;
+        if (!isMounted) return;
 
         const airingData = airingResult.data;
         const trendingData = trendingResult.data;
 
-        setAiringAnime(airingData?.Page?.airingSchedules || []);
+        const fetchedAiring = airingData?.Page?.airingSchedules || [];
+        setAiringAnime(fetchedAiring);
+        setLocalStorageCache(HOME_AIRING_CACHE_KEY, fetchedAiring);
+
         setTrendingAnime(trendingData?.Page?.media || []);
         setHasNextPage(trendingData?.Page?.pageInfo?.hasNextPage || false);
 
@@ -138,14 +147,14 @@ const Home = () => {
 
           if (topAnimeError) {
             console.error("Error fetching top anime for recommendations:", topAnimeError);
-            if (!isCancelled) {
+            if (isMounted) {
               setRecommendedAnime([]);
               setBaseRecomTitle("");
             }
             return;
           }
 
-          if (topAnime && topAnime.length > 0 && !isCancelled) {
+          if (topAnime && topAnime.length > 0 && isMounted) {
             const { data: recomData, error: recomError } = await fetchAniList(RECOM_QUERY, {
               id: topAnime[0].anilist_id,
             });
@@ -156,22 +165,24 @@ const Home = () => {
                 ?.map((edge) => edge.node.mediaRecommendation)
                 ?.filter((anime) => anime !== null) || [];
 
-            setBaseRecomTitle(recomData?.Media?.title?.romaji || "");
-            setRecommendedAnime(animeNodes);
-          } else if (!isCancelled) {
+            if (isMounted) {
+              setBaseRecomTitle(recomData?.Media?.title?.romaji || "");
+              setRecommendedAnime(animeNodes);
+            }
+          } else if (isMounted) {
             setRecommendedAnime([]);
             setBaseRecomTitle("");
           }
-        } else if (!isCancelled) {
+        } else if (isMounted) {
           setRecommendedAnime([]);
           setBaseRecomTitle("");
         }
       } catch (error) {
-        if (!isCancelled) {
+        if (isMounted) {
           console.error("Gagal memuat dasbor:", error);
         }
       } finally {
-        if (!isCancelled) {
+        if (isMounted) {
           setIsLoading(false);
         }
       }
@@ -180,7 +191,7 @@ const Home = () => {
     loadDashboard();
 
     return () => {
-      isCancelled = true;
+      isMounted = false;
     };
   }, [userId]);
 

@@ -196,6 +196,35 @@ export const clearAniListCache = () => {
 };
 
 /**
+ * Get data from localStorage cache synchronously
+ */
+export const getLocalStorageCache = (key) => {
+  try {
+    const itemStr = localStorage.getItem(key);
+    if (!itemStr) return null;
+    const item = JSON.parse(itemStr);
+    return item.data;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Save data to localStorage cache
+ */
+export const setLocalStorageCache = (key, data) => {
+  try {
+    const item = {
+      data: data,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(key, JSON.stringify(item));
+  } catch (err) {
+    console.warn("Failed to save to localStorage cache", err);
+  }
+};
+
+/**
  * Garbage Collection Otomatis untuk Cache (berjalan setiap 7 menit)
  * Mencegah penumpukan memori pada penggunaan web jangka panjang (tab idle)
  */

@@ -7,7 +7,7 @@ import {
   FaCalendarPlus,
   FaDownload,
 } from "react-icons/fa";
-import { fetchAniList } from "../utils/anilist";
+import { fetchAniList, getLocalStorageCache, setLocalStorageCache } from "../utils/anilist";
 import { generateGoogleCalendarUrl, downloadIcsFile } from "../utils/calendar";
 
 const SCHEDULE_QUERY = `
@@ -22,22 +22,20 @@ const SCHEDULE_QUERY = `
           id
           title { romaji english }
           coverImage { large }
-          averageScore
+          format
+          genres
         }
       }
     }
   }
 `;
 
+const SCHEDULE_CACHE_KEY_PREFIX = 'anilist_schedule_cache_week_';
+
 const Schedule = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const dayParam = parseInt(searchParams.get("day"), 10);
   const initialTab = !isNaN(dayParam) && dayParam >= 0 && dayParam < 7 ? dayParam : 0;
-
-  const [scheduleData, setScheduleData] = useState([]);
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
 
   // Generate 7 Hari Penuh
   const days = Array.from({ length: 7 }).map((_, i) => {
@@ -47,56 +45,81 @@ const Schedule = () => {
     return d;
   });
 
-  const fetchSchedule = async () => {
-    setIsError(false);
-    try {
-      const startTime = Math.floor(days[0].getTime() / 1000);
-      const endTime = Math.floor(
-        new Date(days[6]).setHours(23, 59, 59, 999) / 1000,
-      );
-
-      let allSchedules = [];
-      let page = 1;
-      let hasNextPage = true;
-
-      // Safety limit: max 5 halaman (250 anime) untuk mencegah rate-limit 429 dari AniList
-      while (hasNextPage && page <= 5) {
-        const { data, error } = await fetchAniList(SCHEDULE_QUERY, {
-          page,
-          startTime,
-          endTime,
-        });
-        if (error) throw new Error(error);
-        allSchedules = [
-          ...allSchedules,
-          ...(data?.Page?.airingSchedules || []),
-        ];
-        hasNextPage = data?.Page?.pageInfo?.hasNextPage || false;
-        page++;
-      }
-
-      const grouped = days.map((day) => {
-        const startOfDay = Math.floor(day.getTime() / 1000);
-        const endOfDay = Math.floor(
-          new Date(day).setHours(23, 59, 59, 999) / 1000,
-        );
-        return allSchedules.filter(
-          (item) => item.airingAt >= startOfDay && item.airingAt <= endOfDay,
-        );
-      });
-
-      setScheduleData(grouped);
-    } catch (error) {
-      console.error("Gagal memuat jadwal:", error);
-      setIsError(true);
-      setScheduleData([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [scheduleData, setScheduleData] = useState(() => {
+    const today = new Date().setHours(0,0,0,0);
+    return getLocalStorageCache(SCHEDULE_CACHE_KEY_PREFIX + today) || [];
+  });
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [isLoading, setIsLoading] = useState(() => {
+    const today = new Date().setHours(0,0,0,0);
+    const cached = getLocalStorageCache(SCHEDULE_CACHE_KEY_PREFIX + today);
+    return !cached || cached.length === 0;
+  });
+  const [isError, setIsError] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchSchedule = async () => {
+      setIsError(false);
+      try {
+        const startTime = Math.floor(days[0].getTime() / 1000);
+        const endTime = Math.floor(
+          new Date(days[6]).setHours(23, 59, 59, 999) / 1000,
+        );
+
+        let allSchedules = [];
+        let page = 1;
+        let hasNextPage = true;
+
+        // Safety limit: max 5 halaman (250 anime) untuk mencegah rate-limit 429 dari AniList
+        while (hasNextPage && page <= 5 && isMounted) {
+          const { data, error } = await fetchAniList(SCHEDULE_QUERY, {
+            page,
+            startTime,
+            endTime,
+          });
+          if (error) throw new Error(error);
+          allSchedules = [
+            ...allSchedules,
+            ...(data?.Page?.airingSchedules || []),
+          ];
+          hasNextPage = data?.Page?.pageInfo?.hasNextPage || false;
+          page++;
+        }
+
+        if (!isMounted) return;
+
+        const grouped = days.map((day) => {
+          const startOfDay = Math.floor(day.getTime() / 1000);
+          const endOfDay = Math.floor(
+            new Date(day).setHours(23, 59, 59, 999) / 1000,
+          );
+          return allSchedules.filter(
+            (item) => item.airingAt >= startOfDay && item.airingAt <= endOfDay,
+          );
+        });
+
+        const today = new Date().setHours(0,0,0,0);
+        setScheduleData(grouped);
+        setLocalStorageCache(SCHEDULE_CACHE_KEY_PREFIX + today, grouped);
+      } catch (error) {
+        if (isMounted) {
+          console.error("Gagal memuat jadwal:", error);
+          setIsError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
     fetchSchedule();
+
+    return () => {
+      isMounted = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -222,7 +245,7 @@ const Schedule = () => {
               Terjadi kendala koneksi ke server AniList. Silakan coba kembali.
             </p>
             <button
-              onClick={fetchSchedule}
+              onClick={() => window.location.reload()}
               className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl transition-colors shadow-lg cursor-pointer text-sm"
             >
               Muat Ulang Jadwal
