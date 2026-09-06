@@ -35,6 +35,7 @@ const AnimeCard = memo(({ anime, onDelete }) => {
             alt={title}
             loading="lazy"
             decoding="async"
+            onError={(e) => { e.target.src = 'https://placehold.co/400x600/180505/ef4444?text=No+Image'; }}
             className="w-full h-full object-cover group-hover:scale-105 group-hover:brightness-105 transition-transform duration-500 ease-out"
           />
 

@@ -104,19 +104,20 @@ const Home = () => {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
 
   useEffect(() => {
-    let isCancelled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
 
     const loadDashboard = async () => {
       try {
         const [airingResult, trendingResult] = await Promise.all([
-          fetchAniList(AIRING_QUERY),
-          fetchAniList(TRENDING_QUERY, { page: 1 }),
+          fetchAniList(AIRING_QUERY, {}, { signal }),
+          fetchAniList(TRENDING_QUERY, { page: 1 }, { signal }),
         ]);
 
         if (airingResult.error) throw new Error(airingResult.error);
         if (trendingResult.error) throw new Error(trendingResult.error);
 
-        if (isCancelled) return;
+        if (signal.aborted) return;
 
         const airingData = airingResult.data;
         const trendingData = trendingResult.data;
@@ -138,17 +139,17 @@ const Home = () => {
 
           if (topAnimeError) {
             console.error("Error fetching top anime for recommendations:", topAnimeError);
-            if (!isCancelled) {
+            if (!signal.aborted) {
               setRecommendedAnime([]);
               setBaseRecomTitle("");
             }
             return;
           }
 
-          if (topAnime && topAnime.length > 0 && !isCancelled) {
+          if (topAnime && topAnime.length > 0 && !signal.aborted) {
             const { data: recomData, error: recomError } = await fetchAniList(RECOM_QUERY, {
               id: topAnime[0].anilist_id,
-            });
+            }, { signal });
             if (recomError) throw new Error(recomError);
 
             const animeNodes =
@@ -156,22 +157,24 @@ const Home = () => {
                 ?.map((edge) => edge.node.mediaRecommendation)
                 ?.filter((anime) => anime !== null) || [];
 
-            setBaseRecomTitle(recomData?.Media?.title?.romaji || "");
-            setRecommendedAnime(animeNodes);
-          } else if (!isCancelled) {
+            if (!signal.aborted) {
+              setBaseRecomTitle(recomData?.Media?.title?.romaji || "");
+              setRecommendedAnime(animeNodes);
+            }
+          } else if (!signal.aborted) {
             setRecommendedAnime([]);
             setBaseRecomTitle("");
           }
-        } else if (!isCancelled) {
+        } else if (!signal.aborted) {
           setRecommendedAnime([]);
           setBaseRecomTitle("");
         }
       } catch (error) {
-        if (!isCancelled) {
+        if (!signal.aborted && error.name !== "AbortError") {
           console.error("Gagal memuat dasbor:", error);
         }
       } finally {
-        if (!isCancelled) {
+        if (!signal.aborted) {
           setIsLoading(false);
         }
       }
@@ -180,7 +183,7 @@ const Home = () => {
     loadDashboard();
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
   }, [userId]);
 

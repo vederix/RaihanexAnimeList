@@ -21,9 +21,9 @@ const Watchlist = () => {
     { id: "Completed", label: "Completed", icon: <FaCheck /> },
   ];
 
-  const loadWatchlist = async (isCancelled = false) => {
+  const loadWatchlist = async (signal) => {
     if (!user) {
-      if (!isCancelled) {
+      if (!signal?.aborted) {
         setSavedAnime([]);
         setIsLoading(false);
       }
@@ -38,28 +38,29 @@ const Watchlist = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      if (!isCancelled) {
+      if (!signal?.aborted) {
         setSavedAnime(data || []);
       }
     } catch (err) {
-      if (!isCancelled) {
+      if (!signal?.aborted) {
         console.error("Gagal memuat watchlist:", err);
         setFetchError("Gagal memuat data Watchlist dari server. Periksa koneksi internetmu.");
         toast.error("Gagal memuat Watchlist.");
       }
     } finally {
-      if (!isCancelled) {
+      if (!signal?.aborted) {
         setIsLoading(false);
       }
     }
   };
 
   useEffect(() => {
-    let isCancelled = false;
-    loadWatchlist(isCancelled);
+    const controller = new AbortController();
+    const { signal } = controller;
+    loadWatchlist(signal);
 
     return () => {
-      isCancelled = true;
+      controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -352,7 +353,7 @@ const Watchlist = () => {
           </h2>
           <p className="text-zinc-400 text-sm mb-6 max-w-md mx-auto">{fetchError}</p>
           <button
-            onClick={() => loadWatchlist(false)}
+            onClick={() => loadWatchlist(null)}
             className="btn-primary py-3 px-8 text-sm sm:text-base shadow-[0_0_20px_rgba(220,38,38,0.3)] active:scale-95"
           >
             Coba Muat Ulang
