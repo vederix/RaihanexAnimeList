@@ -50,6 +50,7 @@ const CharacterModal = ({ characterEdge, onClose }) => {
             <img
               src={char.image?.large}
               alt={char.name?.full}
+              onError={(e) => { e.target.src = 'https://placehold.co/400x600/180505/ef4444?text=No+Image'; }}
               className="w-32 h-40 md:w-40 md:h-52 object-cover rounded-2xl relative z-10 border-2 border-red-900/50 shadow-[0_0_20px_rgba(220,38,38,0.3)]"
             />
           </div>
@@ -70,6 +71,7 @@ const CharacterModal = ({ characterEdge, onClose }) => {
                 <img
                   src={va.image?.large}
                   alt={va.name?.full}
+                  onError={(e) => { e.target.src = 'https://placehold.co/400x600/180505/ef4444?text=No+Image'; }}
                   className="w-24 h-24 md:w-32 md:h-32 object-cover rounded-full relative z-10 border-2 border-blue-900/50 shadow-[0_0_20px_rgba(59,130,246,0.3)]"
                 />
               </div>

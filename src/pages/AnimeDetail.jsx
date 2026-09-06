@@ -79,7 +79,7 @@ export default function AnimeDetail() {
   const [showCollectionModal, setShowCollectionModal] = useState(false);
 
   // --- FETCH ULASAN SUPABASE ---
-  const fetchReviews = useCallback(async (animeId, pageNum = 1) => {
+  const fetchReviews = useCallback(async (animeId, pageNum = 1, signal = null) => {
     try {
       const from = (pageNum - 1) * REVIEWS_PER_PAGE;
       const to = from + REVIEWS_PER_PAGE - 1;
@@ -92,6 +92,8 @@ export default function AnimeDetail() {
         .range(from, to);
 
       if (error) throw error;
+
+      if (signal?.aborted) return;
 
       if (pageNum === 1) {
         setReviews(data || []);
@@ -106,7 +108,9 @@ export default function AnimeDetail() {
       setHasMoreReviews((count || 0) > pageNum * REVIEWS_PER_PAGE);
       setReviewsPage(pageNum);
     } catch (err) {
-      console.error("Gagal memuat ulasan:", err);
+      if (!signal?.aborted) {
+        console.error("Gagal memuat ulasan:", err);
+      }
     }
   }, []);
 
@@ -119,9 +123,9 @@ export default function AnimeDetail() {
 
   // --- CEK STATUS WATCHLIST ---
   const checkWatchlistStatus = useCallback(
-    async (animeId) => {
+    async (animeId, signal = null) => {
       if (!user) {
-        setIsInWatchlist(false);
+        if (!signal?.aborted) setIsInWatchlist(false);
         return;
       }
       try {
@@ -132,7 +136,9 @@ export default function AnimeDetail() {
           .eq("anilist_id", animeId)
           .maybeSingle();
 
-        if (error) console.error("Gagal mengecek status watchlist:", error);
+        if (error && !signal?.aborted) console.error("Gagal mengecek status watchlist:", error);
+
+        if (signal?.aborted) return;
 
         if (data) {
           setIsInWatchlist(true);
@@ -146,7 +152,7 @@ export default function AnimeDetail() {
           setEpisodesWatched(0);
         }
       } catch (err) {
-        console.error("Gagal cek status watchlist:", err);
+        if (!signal?.aborted) console.error("Gagal cek status watchlist:", err);
       }
     },
     [user]
@@ -154,21 +160,22 @@ export default function AnimeDetail() {
 
   // --- LOAD ANIME DETAIL ---
   useEffect(() => {
-    let isCancelled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
 
     const fetchAnime = async () => {
       try {
         const parsedId = parseInt(id, 10);
         if (isNaN(parsedId)) {
-          if (!isCancelled) setIsLoading(false);
+          if (!signal.aborted) setIsLoading(false);
           return;
         }
 
-        const { data, error } = await fetchAniList(DETAIL_QUERY, { id: parsedId });
+        const { data, error } = await fetchAniList(DETAIL_QUERY, { id: parsedId }, { signal });
         if (error) throw new Error(error);
         
         const animeData = data?.Media;
-        if (!isCancelled) {
+        if (!signal.aborted) {
           setAnime(animeData);
         }
 
@@ -176,18 +183,18 @@ export default function AnimeDetail() {
           document.title = `${animeData.title.romaji} - RAIHANEX`;
         }
 
-        if (animeData?.id && !isCancelled) {
+        if (animeData?.id && !signal.aborted) {
           await Promise.all([
-            fetchReviews(animeData.id),
-            checkWatchlistStatus(animeData.id),
+            fetchReviews(animeData.id, 1, signal),
+            checkWatchlistStatus(animeData.id, signal),
           ]);
         }
       } catch (error) {
-        if (!isCancelled) {
+        if (!signal.aborted && error.name !== "AbortError") {
           console.error("Gagal memuat detail anime:", error);
         }
       } finally {
-        if (!isCancelled) {
+        if (!signal.aborted) {
           setIsLoading(false);
         }
       }
@@ -196,7 +203,7 @@ export default function AnimeDetail() {
     fetchAnime();
 
     return () => {
-      isCancelled = true;
+      controller.abort();
       document.title = "RAIHANEX - Anime List & Tracker";
     };
   }, [id, fetchReviews, checkWatchlistStatus]);
@@ -376,6 +383,7 @@ export default function AnimeDetail() {
           <img
             src={anime.bannerImage}
             alt="Banner"
+            onError={(e) => { e.target.src = 'https://placehold.co/400x600/180505/ef4444?text=No+Image'; }}
             className="w-full h-full object-cover opacity-80"
           />
         ) : (
@@ -401,6 +409,7 @@ export default function AnimeDetail() {
               <img
                 src={anime.coverImage?.extraLarge || anime.coverImage?.large}
                 alt={anime.title?.romaji || "Poster"}
+                onError={(e) => { e.target.src = 'https://placehold.co/400x600/180505/ef4444?text=No+Image'; }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
               />
               <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-md border border-yellow-500/50 text-white font-black px-3 py-1.5 rounded-xl text-lg shadow-lg flex items-center gap-1.5">
