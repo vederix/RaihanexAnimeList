@@ -188,6 +188,22 @@ export const fetchAniList = (query, variables = {}, options = {}) => {
 };
 
 /**
+ * Mengambil data dari cache AniList secara sinkron
+ */
+export const getAniListCacheSync = (query, variables = {}, ttl = DEFAULT_TTL_MS) => {
+  if (!query || typeof query !== "string") return null;
+
+  let cacheKey;
+  try {
+    cacheKey = JSON.stringify({ query: query.trim(), variables: variables || {} });
+  } catch {
+    cacheKey = `${query.trim()}_${String(variables)}`;
+  }
+
+  return getFromCache(cacheKey, ttl);
+};
+
+/**
  * Membersihkan semua cache memori AniList dan in-flight requests
  */
 export const clearAniListCache = () => {

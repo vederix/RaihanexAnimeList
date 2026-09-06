@@ -171,7 +171,7 @@ export default function AnimeDetail() {
           return;
         }
 
-        const { data, error } = await fetchAniList(DETAIL_QUERY, { id: parsedId }, { signal });
+        const { data, error } = await fetchAniList(DETAIL_QUERY, { id: parsedId });
         if (error) throw new Error(error);
         
         const animeData = data?.Media;
@@ -383,7 +383,7 @@ export default function AnimeDetail() {
           <img
             src={anime.bannerImage}
             alt="Banner"
-            onError={(e) => { e.target.src = 'https://placehold.co/400x600/180505/ef4444?text=No+Image'; }}
+            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://placehold.co/400x600/180505/ef4444?text=No+Image'; }}
             className="w-full h-full object-cover opacity-80"
           />
         ) : (
@@ -409,7 +409,7 @@ export default function AnimeDetail() {
               <img
                 src={anime.coverImage?.extraLarge || anime.coverImage?.large}
                 alt={anime.title?.romaji || "Poster"}
-                onError={(e) => { e.target.src = 'https://placehold.co/400x600/180505/ef4444?text=No+Image'; }}
+                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://placehold.co/400x600/180505/ef4444?text=No+Image'; }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
               />
               <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-md border border-yellow-500/50 text-white font-black px-3 py-1.5 rounded-xl text-lg shadow-lg flex items-center gap-1.5">

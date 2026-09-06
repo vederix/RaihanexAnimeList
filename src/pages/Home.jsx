@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense, memo } from "react";
 import AnimeCard from "../components/AnimeCard";
 import SkeletonCard from "../components/SkeletonCard";
-import { fetchAniList } from "../utils/anilist";
+import { fetchAniList, getAniListCacheSync } from "../utils/anilist";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -92,16 +92,21 @@ StandardAnimeWrapper.displayName = "StandardAnimeWrapper";
 const Home = () => {
   const { user } = useAuth();
   const userId = user?.id;
-  const [trendingAnime, setTrendingAnime] = useState([]);
-  const [airingAnime, setAiringAnime] = useState([]);
+
+  const cachedAiring = getAniListCacheSync(AIRING_QUERY);
+  const cachedTrending = getAniListCacheSync(TRENDING_QUERY, { page: 1 });
+
+  const [trendingAnime, setTrendingAnime] = useState(cachedTrending?.Page?.media || []);
+  const [airingAnime, setAiringAnime] = useState(cachedAiring?.Page?.airingSchedules || []);
   const [recommendedAnime, setRecommendedAnime] = useState([]);
   const [baseRecomTitle, setBaseRecomTitle] = useState("");
   const [isRandomizerOpen, setIsRandomizerOpen] = useState(false);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!cachedAiring || !cachedTrending);
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [dashboardError, setDashboardError] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -109,9 +114,10 @@ const Home = () => {
 
     const loadDashboard = async () => {
       try {
+        setDashboardError(null);
         const [airingResult, trendingResult] = await Promise.all([
-          fetchAniList(AIRING_QUERY, {}, { signal }),
-          fetchAniList(TRENDING_QUERY, { page: 1 }, { signal }),
+          fetchAniList(AIRING_QUERY),
+          fetchAniList(TRENDING_QUERY, { page: 1 }),
         ]);
 
         if (airingResult.error) throw new Error(airingResult.error);
@@ -149,7 +155,7 @@ const Home = () => {
           if (topAnime && topAnime.length > 0 && !signal.aborted) {
             const { data: recomData, error: recomError } = await fetchAniList(RECOM_QUERY, {
               id: topAnime[0].anilist_id,
-            }, { signal });
+            });
             if (recomError) throw new Error(recomError);
 
             const animeNodes =
@@ -172,6 +178,7 @@ const Home = () => {
       } catch (error) {
         if (!signal.aborted && error.name !== "AbortError") {
           console.error("Gagal memuat dasbor:", error);
+          setDashboardError(error.message || "Gagal memuat data dari server.");
         }
       } finally {
         if (!signal.aborted) {
@@ -256,7 +263,21 @@ const Home = () => {
 
       {/* --- KONTEN UTAMA --- */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6">
-        {isLoading ? (
+        {dashboardError ? (
+          <div className="glass-card p-8 sm:p-12 rounded-3xl text-center max-w-2xl mx-auto shadow-[0_20px_40px_rgba(0,0,0,0.5)] border border-red-500/30">
+            <span className="text-4xl sm:text-5xl mb-4 sm:mb-6 block drop-shadow-lg">⚠️</span>
+            <h2 className="text-xl sm:text-2xl font-black text-white mb-2 tracking-tight">
+              Gagal Memuat Dasbor
+            </h2>
+            <p className="text-zinc-400 text-sm mb-6 max-w-md mx-auto">{dashboardError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn-primary py-3 px-8 text-sm sm:text-base shadow-[0_0_20px_rgba(220,38,38,0.3)] active:scale-95"
+            >
+              Muat Ulang Halaman
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="flex flex-col gap-8 md:gap-16">
             <section className="glass-card p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-[2rem]">
               <div className="h-6 sm:h-8 bg-red-900/20 rounded-xl w-48 sm:w-64 mb-6 animate-pulse"></div>
